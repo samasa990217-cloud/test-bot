@@ -77,16 +77,22 @@ async def announce(interaction: discord.Interaction):
         print(e)
 
 # ---------- 交易編號生成 ----------
-def generate_trade_id():
-    now = datetime.datetime.now()
-    base_id = now.strftime("%Y%m%d")
-    existing = [f for f in os.listdir(LOG_FOLDER) if f.startswith("trade_")]
-    if not existing:
+def generate_trade_id(guild):
+    today_str = datetime.datetime.now().strftime("%Y%m%d")
+    # 找 guild 裡今天已經存在的交易頻道
+    existing_channels = [
+        ch for ch in guild.channels if ch.name.startswith(f"trade-{today_str}")
+    ]
+    if not existing_channels:
         count = 1
     else:
-        nums = [int(f[9:]) for f in existing if f[9:].isdigit()]
+        nums = []
+        for ch in existing_channels:
+            suffix = ch.name.replace(f"trade-{today_str}", "")
+            if suffix.isdigit():
+                nums.append(int(suffix))
         count = max(nums)+1 if nums else 1
-    trade_id = f"{base_id}{count:03d}"
+    trade_id = f"{today_str}{count:03d}"
     return trade_id
 
 # ---------- /買賣交易 指令 ----------
@@ -98,8 +104,8 @@ def generate_trade_id():
 )
 async def trade(interaction: discord.Interaction, item: str, price: str, mention_buyers: str):
     author = interaction.user
-    trade_id = generate_trade_id()
     guild = interaction.guild
+    trade_id = generate_trade_id(guild)
 
     # 檢查頻道是否已存在
     channel_name = f"trade-{trade_id}"
