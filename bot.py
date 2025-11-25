@@ -98,7 +98,6 @@ def generate_trade_id():
 )
 async def trade(interaction: discord.Interaction, item: str, price: str, mention_buyers: str):
     try:
-        # ---------- 確保資料夾存在 ----------
         if not os.path.exists(LOG_FOLDER):
             os.makedirs(LOG_FOLDER)
 
@@ -138,10 +137,9 @@ async def trade(interaction: discord.Interaction, item: str, price: str, mention
             @discord.ui.button(label="完成交易", style=discord.ButtonStyle.green)
             async def complete(self, button, interaction: discord.Interaction):
                 try:
-                    # defer 避免交互失敗
+                    # 立即 defer
                     await interaction.response.defer(ephemeral=True)
 
-                    # 再次確保資料夾存在
                     if not os.path.exists(LOG_FOLDER):
                         os.makedirs(LOG_FOLDER)
 
@@ -158,13 +156,12 @@ async def trade(interaction: discord.Interaction, item: str, price: str, mention
                         f"✅ 交易完成，紀錄已保存: `{filename}`",
                         ephemeral=True
                     )
-
-                    await discord.utils.sleep_until(discord.utils.utcnow() + datetime.timedelta(seconds=1))
-                    await interaction.channel.delete()
                 except Exception as e:
                     print(f"按鈕執行錯誤: {e}")
 
-        await channel.send(view=CompleteButton(trade_id))
+        view = CompleteButton(trade_id)
+        await channel.send("點擊完成交易按鈕以結束交易", view=view)
+        bot.add_view(view)  # 保留引用，避免 GC
 
     except Exception as e:
         await interaction.followup.send(f"❌ 發生錯誤: {e}", ephemeral=True)
