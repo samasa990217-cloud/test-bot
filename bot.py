@@ -88,7 +88,7 @@ def generate_trade_id():
     trade_id = f"{base_id}{count:03d}"
     return trade_id
 
-# ---------- /買賣交易 指令（使用 Slash 參數） ----------
+# ---------- /買賣交易 指令 ----------
 @bot.tree.command(name="買賣交易", description="發布買賣交易訊息並自動生成交易編號")
 @app_commands.describe(
     item="交易物品內容",
@@ -101,13 +101,14 @@ async def trade(interaction: discord.Interaction, item: str, price: str, mention
         trade_id = generate_trade_id()
 
         # 回覆用戶交易編號
-        await interaction.response.send_message(f"🆔 交易編號: {trade_id}\n{mention}\n物品: {item}\n價錢: {price}\n正在建立交易頻道...", ephemeral=True)
+        await interaction.response.send_message(f"🆔 交易編號: {trade_id}\n正在建立私密交易頻道...", ephemeral=True)
 
-        # 建立公開交易頻道
+        # 建立私密交易頻道
         guild = interaction.guild
         author = interaction.user
         overwrites = {
-            guild.default_role: discord.PermissionOverwrite(read_messages=True, send_messages=True)
+            guild.default_role: discord.PermissionOverwrite(read_messages=False),  # 一般人看不到
+            author: discord.PermissionOverwrite(read_messages=True, send_messages=True),  # 建立者可以
         }
         category = guild.get_channel(TRADE_CATEGORY_ID)
         channel = await guild.create_text_channel(
@@ -116,6 +117,9 @@ async def trade(interaction: discord.Interaction, item: str, price: str, mention
             category=category,
             topic=f"交易編號 {trade_id} 由 {author} 建立"
         )
+
+        # 發送交易訊息
+        await channel.send(f"{mention}\n🛒 交易 {trade_id} 開始，由 {author.mention} 建立。\n物品: {item}\n價錢: {price}")
 
         # 完成交易按鈕
         class CompleteButton(discord.ui.View):
@@ -131,14 +135,14 @@ async def trade(interaction: discord.Interaction, item: str, price: str, mention
                 await button_interaction.response.send_message(f"✅ 交易完成，紀錄已保存: `{filename}`", ephemeral=True)
                 await channel.delete()
 
-        await channel.send(f"🛒 交易 {trade_id} 開始，由 {author.mention} 建立。", view=CompleteButton())
+        await channel.send(view=CompleteButton())
 
     except Exception as e:
         await interaction.followup.send(f"❌ 發生錯誤: {e}", ephemeral=True)
         print(e)
 
-# ---------- /我要交易 指令（導引至已有頻道） ----------
-@bot.tree.command(name="我要交易", description="進入已存在的交易頻道")
+# ---------- /我要交易 指令 ----------
+@bot.tree.command(name="我要交易", description="輸入交易編號以進入私密交易頻道")
 @app_commands.describe(trade_id="請輸入交易編號")
 async def join_trade(interaction: discord.Interaction, trade_id: str):
     guild = interaction.guild
@@ -146,8 +150,10 @@ async def join_trade(interaction: discord.Interaction, trade_id: str):
     channel = discord.utils.get(guild.channels, name=channel_name)
 
     if channel:
+        # 授權使用者進入私密頻道
+        await channel.set_permissions(interaction.user, read_messages=True, send_messages=True)
         await interaction.response.send_message(
-            f"🔗 交易頻道已存在: {channel.mention}，你可以進入該頻道進行交易。",
+            f"🔑 你已被授權進入交易頻道: {channel.mention}",
             ephemeral=True
         )
     else:
