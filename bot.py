@@ -40,17 +40,21 @@ if not os.path.exists(LOG_FOLDER):
 @bot.event
 async def on_ready():
     print(f"Logged in as {bot.user}")
+    print("目前工作目錄：", os.getcwd())
     try:
         await bot.tree.sync()
         print("Slash commands synced.")
     except Exception as e:
         print(e)
 
-# ---------- /公告 指令 (保持原本方式) ----------
+# ---------- /公告 指令 ----------
 @bot.tree.command(name="公告", description="發布一則公告")
 async def announce(interaction: discord.Interaction):
     await interaction.response.send_message("📝 請輸入公告內容:", ephemeral=True)
-    def check(m): return m.author == interaction.user and m.channel == interaction.channel
+
+    def check(m): 
+        return m.author == interaction.user and m.channel == interaction.channel
+
     try:
         msg = await bot.wait_for('message', check=check, timeout=60)
         content = msg.content
@@ -72,6 +76,7 @@ async def announce(interaction: discord.Interaction):
             await sent_msg.pin()
 
         await interaction.followup.send("✅ 公告已發布！", ephemeral=True)
+
     except Exception as e:
         await interaction.followup.send("⚠️ 超時或錯誤，請重新操作。", ephemeral=True)
         print(e)
@@ -79,10 +84,10 @@ async def announce(interaction: discord.Interaction):
 # ---------- 交易編號生成 ----------
 def generate_trade_id(guild):
     today_str = datetime.datetime.now().strftime("%Y%m%d")
-    # 找 guild 裡今天已經存在的交易頻道
     existing_channels = [
         ch for ch in guild.channels if ch.name.startswith(f"trade-{today_str}")
     ]
+
     if not existing_channels:
         count = 1
     else:
@@ -91,7 +96,8 @@ def generate_trade_id(guild):
             suffix = ch.name.replace(f"trade-{today_str}", "")
             if suffix.isdigit():
                 nums.append(int(suffix))
-        count = max(nums)+1 if nums else 1
+        count = max(nums) + 1 if nums else 1
+
     trade_id = f"{today_str}{count:03d}"
     return trade_id
 
@@ -107,7 +113,6 @@ async def trade(interaction: discord.Interaction, item: str, price: str, mention
     guild = interaction.guild
     trade_id = generate_trade_id(guild)
 
-    # 檢查頻道是否已存在
     channel_name = f"trade-{trade_id}"
     existing_channel = discord.utils.get(guild.channels, name=channel_name)
     if existing_channel:
@@ -124,18 +129,19 @@ async def trade(interaction: discord.Interaction, item: str, price: str, mention
         ephemeral=False
     )
 
-    # 創建私密交易頻道
     overwrites = {
         guild.default_role: discord.PermissionOverwrite(read_messages=False),
         author: discord.PermissionOverwrite(read_messages=True, send_messages=True),
     }
     category = guild.get_channel(TRADE_CATEGORY_ID)
+
     channel = await guild.create_text_channel(
         name=channel_name,
         overwrites=overwrites,
         category=category,
         topic=f"交易編號 {trade_id} 由 {author} 建立"
     )
+
     await channel.send(f"🛒 私密交易 {trade_id} 頻道，僅授權成員可見。")
 
 # ---------- /我要交易 指令 ----------
@@ -145,6 +151,7 @@ async def join_trade(interaction: discord.Interaction, trade_id: str):
     guild = interaction.guild
     channel_name = f"trade-{trade_id}"
     channel = discord.utils.get(guild.channels, name=channel_name)
+
     if channel:
         await channel.set_permissions(interaction.user, read_messages=True, send_messages=True)
         await interaction.response.send_message(
@@ -153,7 +160,7 @@ async def join_trade(interaction: discord.Interaction, trade_id: str):
         )
     else:
         await interaction.response.send_message(
-            "❌ 查無此交易編號，請確認輸入正確或等待頻道建立。",
+            "❌ 查無此交易編號，請確認輸入正確。",
             ephemeral=True
         )
 
@@ -164,32 +171,65 @@ async def complete_trade(interaction: discord.Interaction, trade_id: str):
     guild = interaction.guild
     channel_name = f"trade-{trade_id}"
     channel = discord.utils.get(guild.channels, name=channel_name)
+
     if channel:
         messages = []
+
         async for msg in channel.history(limit=None, oldest_first=True):
             timestamp = msg.created_at.strftime("%Y-%m-%d %H:%M:%S")
             messages.append(f"[{timestamp}] {msg.author}: {msg.content}")
 
-        if not os.path.exists(LOG_FOLDER):
-            os.makedirs(LOG_FOLDER)
-
         filename = os.path.join(LOG_FOLDER, f"trade_{trade_id}.txt")
+
         with open(filename, "w", encoding="utf-8") as f:
             f.write("\n".join(messages))
 
-        full_path = os.path.abspath(filename)
         await interaction.response.send_message(
-            f"✅ 交易完成，紀錄已保存: `{full_path}`",
+            f"✅ 交易完成，紀錄已保存。",
             ephemeral=True
         )
 
         await asyncio.sleep(1)
         await channel.delete()
+
     else:
         await interaction.response.send_message(
             "❌ 查無此交易編號，請確認輸入正確。",
             ephemeral=True
         )
+
+# ---------- /查詢交易（你要求的功能） ----------
+@bot.tree.command(name="查詢交易", description="輸入交易編號查看已儲存的交易紀錄")
+@app_commands.describe(trade_id="請輸入交易編號")
+async def query_trade(interaction: discord.Interaction, trade_id: str):
+
+    filename = os.path.join(LOG_FOLDER, f"trade_{trade_id}.txt")
+
+    if not os.path.exists(filename):
+        await interaction.response.send_message(
+            "❌ 查無此交易紀錄。",
+            ephemeral=True
+        )
+        return
+
+    with open(filename, "r", encoding="utf-8") as f:
+        content = f.read()
+
+    if len(content) <= 1900:
+        await interaction.response.send_message(
+            f"📄 **交易紀錄 - {trade_id}**\n```\n{content}\n```",
+            ephemeral=True
+        )
+    else:
+        await interaction.response.send_message(
+            f"📄 **交易紀錄 - {trade_id} (內容較長，將分段顯示)**",
+            ephemeral=True
+        )
+
+        chunks = [content[i:i+1900] for i in range(0, len(content), 1900)]
+
+        for c in chunks:
+            await interaction.followup.send(f"```\n{c}\n```", ephemeral=True)
 
 # ---------- 啟動 Bot ----------
 TOKEN = os.environ.get("DISCORD_TOKEN")
