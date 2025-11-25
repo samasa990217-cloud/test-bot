@@ -99,6 +99,17 @@ def generate_trade_id():
 async def trade(interaction: discord.Interaction, item: str, price: str, mention_buyers: str):
     author = interaction.user
     trade_id = generate_trade_id()
+    guild = interaction.guild
+
+    # 檢查頻道是否已存在
+    channel_name = f"trade-{trade_id}"
+    existing_channel = discord.utils.get(guild.channels, name=channel_name)
+    if existing_channel:
+        await interaction.response.send_message(
+            "⚠️ 此交易編號頻道已存在，請稍後再試。", ephemeral=True
+        )
+        return
+
     mention = f"<@&{BUYERS_ROLE_ID}>" if mention_buyers.lower() == "是" else ""
 
     await interaction.response.send_message(
@@ -108,14 +119,13 @@ async def trade(interaction: discord.Interaction, item: str, price: str, mention
     )
 
     # 創建私密交易頻道
-    guild = interaction.guild
     overwrites = {
         guild.default_role: discord.PermissionOverwrite(read_messages=False),
         author: discord.PermissionOverwrite(read_messages=True, send_messages=True),
     }
     category = guild.get_channel(TRADE_CATEGORY_ID)
     channel = await guild.create_text_channel(
-        name=f"trade-{trade_id}",
+        name=channel_name,
         overwrites=overwrites,
         category=category,
         topic=f"交易編號 {trade_id} 由 {author} 建立"
