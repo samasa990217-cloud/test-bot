@@ -125,24 +125,30 @@ async def trade(interaction: discord.Interaction, item: str, price: str, mention
         await channel.send(f"🛒 私密交易 {trade_id} 頻道，僅授權成員可見。")
 
         # ---------- 完成交易按鈕 ----------
-        class CompleteButton(discord.ui.View):
-            @discord.ui.button(label="完成交易", style=discord.ButtonStyle.green)
-            async def complete(self, button, button_interaction: discord.Interaction):
-                messages = []
-                async for msg in channel.history(limit=None, oldest_first=True):
-                    timestamp = msg.created_at.strftime("%Y-%m-%d %H:%M:%S")
-                    messages.append(f"[{timestamp}] {msg.author}: {msg.content}")
-                filename = os.path.join(LOG_FOLDER, f"trade_{trade_id}.txt")
-                with open(filename, "w", encoding="utf-8") as f:
-                    f.write("\n".join(messages))
-                await button_interaction.response.send_message(f"✅ 交易完成，紀錄已保存: `{filename}`", ephemeral=True)
-                await channel.delete()
+        # ---------- 完成交易按鈕 ----------
+class CompleteButton(discord.ui.View):
+    @discord.ui.button(label="完成交易", style=discord.ButtonStyle.green)
+    async def complete(self, button, button_interaction: discord.Interaction):
+        # 先 defer，避免 3 秒超時
+        await button_interaction.response.defer(ephemeral=True)
 
-        await channel.send(view=CompleteButton())
+        # 讀取頻道歷史並寫入檔案
+        messages = []
+        async for msg in button_interaction.channel.history(limit=None, oldest_first=True):
+            timestamp = msg.created_at.strftime("%Y-%m-%d %H:%M:%S")
+            messages.append(f"[{timestamp}] {msg.author}: {msg.content}")
 
-    except Exception as e:
-        await interaction.followup.send(f"❌ 發生錯誤: {e}", ephemeral=True)
-        print(e)
+        filename = os.path.join(LOG_FOLDER, f"trade_{trade_id}.txt")
+        with open(filename, "w", encoding="utf-8") as f:
+            f.write("\n".join(messages))
+
+        # 回覆使用者
+        await button_interaction.followup.send(
+            f"✅ 交易完成，紀錄已保存: `{filename}`", ephemeral=True
+        )
+
+        # 刪除頻道
+        await button_interaction.channel.delete()
 
 # ---------- /我要交易 指令 ----------
 @bot.tree.command(name="我要交易", description="輸入交易編號以進入私密交易頻道")
