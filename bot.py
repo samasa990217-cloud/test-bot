@@ -111,8 +111,8 @@ async def trade(interaction: discord.Interaction, item: str, price: str, mention
         # ---------- 建立私密交易頻道 ----------
         guild = interaction.guild
         overwrites = {
-            guild.default_role: discord.PermissionOverwrite(read_messages=False),  # 一般人看不到
-            author: discord.PermissionOverwrite(read_messages=True, send_messages=True),  # 建立者可以
+            guild.default_role: discord.PermissionOverwrite(read_messages=False),
+            author: discord.PermissionOverwrite(read_messages=True, send_messages=True),
         }
         category = guild.get_channel(TRADE_CATEGORY_ID)
         channel = await guild.create_text_channel(
@@ -125,30 +125,38 @@ async def trade(interaction: discord.Interaction, item: str, price: str, mention
         await channel.send(f"🛒 私密交易 {trade_id} 頻道，僅授權成員可見。")
 
         # ---------- 完成交易按鈕 ----------
-        # ---------- 完成交易按鈕 ----------
-class CompleteButton(discord.ui.View):
-    @discord.ui.button(label="完成交易", style=discord.ButtonStyle.green)
-    async def complete(self, button, button_interaction: discord.Interaction):
-        # 先 defer，避免 3 秒超時
-        await button_interaction.response.defer(ephemeral=True)
+        class CompleteButton(discord.ui.View):
+            def __init__(self, trade_id):
+                super().__init__()
+                self.trade_id = trade_id
 
-        # 讀取頻道歷史並寫入檔案
-        messages = []
-        async for msg in button_interaction.channel.history(limit=None, oldest_first=True):
-            timestamp = msg.created_at.strftime("%Y-%m-%d %H:%M:%S")
-            messages.append(f"[{timestamp}] {msg.author}: {msg.content}")
+            @discord.ui.button(label="完成交易", style=discord.ButtonStyle.green)
+            async def complete(self, button, button_interaction: discord.Interaction):
+                # defer 避免交互超時
+                await button_interaction.response.defer(ephemeral=True)
 
-        filename = os.path.join(LOG_FOLDER, f"trade_{trade_id}.txt")
-        with open(filename, "w", encoding="utf-8") as f:
-            f.write("\n".join(messages))
+                messages = []
+                async for msg in button_interaction.channel.history(limit=None, oldest_first=True):
+                    timestamp = msg.created_at.strftime("%Y-%m-%d %H:%M:%S")
+                    messages.append(f"[{timestamp}] {msg.author}: {msg.content}")
 
-        # 回覆使用者
-        await button_interaction.followup.send(
-            f"✅ 交易完成，紀錄已保存: `{filename}`", ephemeral=True
-        )
+                filename = os.path.join(LOG_FOLDER, f"trade_{self.trade_id}.txt")
+                with open(filename, "w", encoding="utf-8") as f:
+                    f.write("\n".join(messages))
 
-        # 刪除頻道
-        await button_interaction.channel.delete()
+                # 回覆使用者
+                await button_interaction.followup.send(
+                    f"✅ 交易完成，紀錄已保存: `{filename}`", ephemeral=True
+                )
+
+                # 刪除頻道
+                await button_interaction.channel.delete()
+
+        await channel.send(view=CompleteButton(trade_id))
+
+    except Exception as e:
+        await interaction.followup.send(f"❌ 發生錯誤: {e}", ephemeral=True)
+        print(e)
 
 # ---------- /我要交易 指令 ----------
 @bot.tree.command(name="我要交易", description="輸入交易編號以進入私密交易頻道")
@@ -159,7 +167,6 @@ async def join_trade(interaction: discord.Interaction, trade_id: str):
     channel = discord.utils.get(guild.channels, name=channel_name)
 
     if channel:
-        # 授權使用者進入私密頻道
         await channel.set_permissions(interaction.user, read_messages=True, send_messages=True)
         await interaction.response.send_message(
             f"🔑 你已被授權進入交易頻道: {channel.mention}",
