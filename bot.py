@@ -42,4 +42,8 @@ async def on_ready():
         print(e)
 
 # /公告 /買賣交易 /我要交易 指令內容可貼前一個版本
-bot.run("你的TOKEN")
+import os
+
+TOKEN = os.environ.get("DISCORD_TOKEN")  # 從環境變數取得 Token
+bot.run(TOKEN)
+
