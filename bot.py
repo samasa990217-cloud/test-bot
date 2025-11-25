@@ -29,7 +29,7 @@ bot = commands.Bot(command_prefix="!", intents=intents)
 # 角色ID
 VERIFIED_ROLE_ID = 1442916731927396403
 BUYERS_ROLE_ID = 1442915193704157235
-TRADE_CATEGORY_ID = 123456789012345678
+TRADE_CATEGORY_ID = 123456789012345678  # 私密交易頻道類別
 LOG_FOLDER = "trade_logs"
 
 if not os.path.exists(LOG_FOLDER):
@@ -97,15 +97,19 @@ def generate_trade_id():
 )
 async def trade(interaction: discord.Interaction, item: str, price: str, mention_buyers: str):
     try:
-        mention = f"<@&{BUYERS_ROLE_ID}>" if mention_buyers.lower() == "是" else ""
-        trade_id = generate_trade_id()
-
-        # 回覆用戶交易編號
-        await interaction.response.send_message(f"🆔 交易編號: {trade_id}\n正在建立私密交易頻道...", ephemeral=True)
-
-        # 建立私密交易頻道
-        guild = interaction.guild
         author = interaction.user
+        trade_id = generate_trade_id()
+        mention = f"<@&{BUYERS_ROLE_ID}>" if mention_buyers.lower() == "是" else ""
+
+        # ---------- 發送公共公告 ----------
+        await interaction.response.send_message(
+            f"{mention}\n🛒 交易 {trade_id} 開始，由 {author.mention} 建立。\n"
+            f"物品: {item}\n價錢: {price}\n輸入 /我要交易 {trade_id} 進入私密頻道",
+            ephemeral=False
+        )
+
+        # ---------- 建立私密交易頻道 ----------
+        guild = interaction.guild
         overwrites = {
             guild.default_role: discord.PermissionOverwrite(read_messages=False),  # 一般人看不到
             author: discord.PermissionOverwrite(read_messages=True, send_messages=True),  # 建立者可以
@@ -118,10 +122,9 @@ async def trade(interaction: discord.Interaction, item: str, price: str, mention
             topic=f"交易編號 {trade_id} 由 {author} 建立"
         )
 
-        # 發送交易訊息
-        await channel.send(f"{mention}\n🛒 交易 {trade_id} 開始，由 {author.mention} 建立。\n物品: {item}\n價錢: {price}")
+        await channel.send(f"🛒 私密交易 {trade_id} 頻道，僅授權成員可見。")
 
-        # 完成交易按鈕
+        # ---------- 完成交易按鈕 ----------
         class CompleteButton(discord.ui.View):
             @discord.ui.button(label="完成交易", style=discord.ButtonStyle.green)
             async def complete(self, button, button_interaction: discord.Interaction):
