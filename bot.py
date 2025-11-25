@@ -5,6 +5,7 @@ import os
 import datetime
 from flask import Flask
 import threading
+import asyncio
 
 # ---------- Flask Keep-Alive ----------
 app = Flask("")
@@ -105,7 +106,6 @@ async def trade(interaction: discord.Interaction, item: str, price: str, mention
         trade_id = generate_trade_id()
         mention = f"<@&{BUYERS_ROLE_ID}>" if mention_buyers.lower() == "是" else ""
 
-        # 公告頻道
         await interaction.response.send_message(
             f"{mention}\n🛒 交易 {trade_id} 開始，由 {author.mention} 建立。\n"
             f"物品: {item}\n價錢: {price}\n輸入 /我要交易 {trade_id} 進入私密頻道",
@@ -125,24 +125,24 @@ async def trade(interaction: discord.Interaction, item: str, price: str, mention
             category=category,
             topic=f"交易編號 {trade_id} 由 {author} 建立"
         )
-
         await channel.send(f"🛒 私密交易 {trade_id} 頻道，僅授權成員可見。")
 
-        # 完成交易按鈕（保險版）
+        # ---------- 完成交易按鈕 ----------
         class CompleteButton(discord.ui.View):
             def __init__(self, trade_id):
-                super().__init__()
+                super().__init__(timeout=None)  # 永不超時
                 self.trade_id = trade_id
 
             @discord.ui.button(label="完成交易", style=discord.ButtonStyle.green)
             async def complete(self, button, interaction: discord.Interaction):
                 try:
-                    # 立即 defer
-                    await interaction.response.defer(ephemeral=True)
+                    await interaction.response.defer(ephemeral=True)  # 立即 defer
 
+                    # 確保資料夾存在
                     if not os.path.exists(LOG_FOLDER):
                         os.makedirs(LOG_FOLDER)
 
+                    # 存檔
                     messages = []
                     async for msg in interaction.channel.history(limit=None, oldest_first=True):
                         timestamp = msg.created_at.strftime("%Y-%m-%d %H:%M:%S")
@@ -156,6 +156,10 @@ async def trade(interaction: discord.Interaction, item: str, price: str, mention
                         f"✅ 交易完成，紀錄已保存: `{filename}`",
                         ephemeral=True
                     )
+
+                    # 延遲刪除頻道
+                    await asyncio.sleep(1)
+                    await interaction.channel.delete()
                 except Exception as e:
                     print(f"按鈕執行錯誤: {e}")
 
