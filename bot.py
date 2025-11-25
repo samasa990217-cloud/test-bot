@@ -91,7 +91,7 @@ def generate_trade_id():
     return trade_id
 
 # ---------- /買賣交易 指令 ----------
-@bot.tree.command(name="買賣交易", description="發布買賣交易訊息並自動生成交易編號")
+@bot.tree.command(name="買賣交易", description="發布買賣交易訊息並生成交易編號")
 @app_commands.describe(
     item="交易物品內容",
     price="交易價錢",
@@ -99,9 +99,6 @@ def generate_trade_id():
 )
 async def trade(interaction: discord.Interaction, item: str, price: str, mention_buyers: str):
     try:
-        if not os.path.exists(LOG_FOLDER):
-            os.makedirs(LOG_FOLDER)
-
         author = interaction.user
         trade_id = generate_trade_id()
         mention = f"<@&{BUYERS_ROLE_ID}>" if mention_buyers.lower() == "是" else ""
@@ -112,7 +109,7 @@ async def trade(interaction: discord.Interaction, item: str, price: str, mention
             ephemeral=False
         )
 
-        # 私密交易頻道
+        # 創建私密交易頻道
         guild = interaction.guild
         overwrites = {
             guild.default_role: discord.PermissionOverwrite(read_messages=False),
@@ -127,45 +124,46 @@ async def trade(interaction: discord.Interaction, item: str, price: str, mention
         )
         await channel.send(f"🛒 私密交易 {trade_id} 頻道，僅授權成員可見。")
 
-        # ---------- 完成交易按鈕 ----------
+        # 等 2 秒後放按鈕
+        await asyncio.sleep(2)
+
         class CompleteButton(discord.ui.View):
-            def __init__(self, trade_id):
-                super().__init__(timeout=None)  # 永不超時
+            def __init__(self, trade_id, channel_id):
+                super().__init__(timeout=None)
                 self.trade_id = trade_id
+                self.channel_id = channel_id
 
             @discord.ui.button(label="完成交易", style=discord.ButtonStyle.green)
             async def complete(self, button, interaction: discord.Interaction):
+                await interaction.response.defer(ephemeral=True)
                 try:
-                    await interaction.response.defer(ephemeral=True)  # 立即 defer
-
-                    # 確保資料夾存在
-                    if not os.path.exists(LOG_FOLDER):
-                        os.makedirs(LOG_FOLDER)
-
-                    # 存檔
+                    ch = interaction.guild.get_channel(self.channel_id)
                     messages = []
-                    async for msg in interaction.channel.history(limit=None, oldest_first=True):
+                    async for msg in ch.history(limit=None, oldest_first=True):
                         timestamp = msg.created_at.strftime("%Y-%m-%d %H:%M:%S")
                         messages.append(f"[{timestamp}] {msg.author}: {msg.content}")
+
+                    if not os.path.exists(LOG_FOLDER):
+                        os.makedirs(LOG_FOLDER)
 
                     filename = os.path.join(LOG_FOLDER, f"trade_{self.trade_id}.txt")
                     with open(filename, "w", encoding="utf-8") as f:
                         f.write("\n".join(messages))
 
+                    full_path = os.path.abspath(filename)
                     await interaction.followup.send(
-                        f"✅ 交易完成，紀錄已保存: `{filename}`",
+                        f"✅ 交易完成，紀錄已保存: `{full_path}`",
                         ephemeral=True
                     )
 
-                    # 延遲刪除頻道
                     await asyncio.sleep(1)
-                    await interaction.channel.delete()
+                    await ch.delete()
                 except Exception as e:
-                    print(f"按鈕執行錯誤: {e}")
+                    print(f"按鈕錯誤: {e}")
 
-        view = CompleteButton(trade_id)
+        view = CompleteButton(trade_id, channel.id)
         await channel.send("點擊完成交易按鈕以結束交易", view=view)
-        bot.add_view(view)  # 保留引用，避免 GC
+        bot.add_view(view)
 
     except Exception as e:
         await interaction.followup.send(f"❌ 發生錯誤: {e}", ephemeral=True)
@@ -178,7 +176,6 @@ async def join_trade(interaction: discord.Interaction, trade_id: str):
     guild = interaction.guild
     channel_name = f"trade-{trade_id}"
     channel = discord.utils.get(guild.channels, name=channel_name)
-
     if channel:
         await channel.set_permissions(interaction.user, read_messages=True, send_messages=True)
         await interaction.response.send_message(
@@ -191,9 +188,9 @@ async def join_trade(interaction: discord.Interaction, trade_id: str):
             ephemeral=True
         )
 
-# ---------- 啟動 Discord Bot ----------
+# ---------- 啟動 Bot ----------
 TOKEN = os.environ.get("DISCORD_TOKEN")
 if not TOKEN:
-    print("⚠️ ERROR: DISCORD_TOKEN 環境變數未設定！")
+    print("⚠️ DISCORD_TOKEN 環境變數未設定！")
 else:
     bot.run(TOKEN)
