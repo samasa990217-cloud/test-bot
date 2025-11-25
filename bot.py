@@ -30,7 +30,6 @@ bot = commands.Bot(command_prefix="!", intents=intents)
 VERIFIED_ROLE_ID = 1442916731927396403
 BUYERS_ROLE_ID = 1442915193704157235
 TRADE_CATEGORY_ID = 123456789012345678
-WAIT_TIME = 60
 LOG_FOLDER = "trade_logs"
 
 if not os.path.exists(LOG_FOLDER):
@@ -52,21 +51,25 @@ async def announce(interaction: discord.Interaction):
     await interaction.response.send_message("📝 請輸入公告內容:", ephemeral=True)
     def check(m): return m.author == interaction.user and m.channel == interaction.channel
     try:
-        msg = await bot.wait_for('message', check=check, timeout=WAIT_TIME)
+        msg = await bot.wait_for('message', check=check, timeout=60)
         content = msg.content
         await msg.delete()
+
         await interaction.followup.send("👥 是否要 @已驗證身分組? (是/否)", ephemeral=True)
-        role_msg = await bot.wait_for('message', check=check, timeout=WAIT_TIME)
+        role_msg = await bot.wait_for('message', check=check, timeout=60)
         role_response = role_msg.content
         await role_msg.delete()
         mention = f"<@&{VERIFIED_ROLE_ID}>" if role_response.lower() == "是" else ""
+
         await interaction.followup.send("📌 是否要置頂? (是/否)", ephemeral=True)
-        pin_msg = await bot.wait_for('message', check=check, timeout=WAIT_TIME)
+        pin_msg = await bot.wait_for('message', check=check, timeout=60)
         pin_response = pin_msg.content
         await pin_msg.delete()
+
         sent_msg = await interaction.channel.send(f"{mention}\n📢 公告內容:\n{content}")
         if pin_response.lower() == "是":
             await sent_msg.pin()
+
         await interaction.followup.send("✅ 公告已發布！", ephemeral=True)
     except Exception as e:
         await interaction.followup.send("⚠️ 超時或錯誤，請重新操作。", ephemeral=True)
@@ -85,90 +88,26 @@ def generate_trade_id():
     trade_id = f"{base_id}{count:03d}"
     return trade_id
 
-# ---------- /買賣交易 指令 ----------
+# ---------- /買賣交易 指令（使用 Slash 參數） ----------
 @bot.tree.command(name="買賣交易", description="發布買賣交易訊息並自動生成交易編號")
-async def trade(interaction: discord.Interaction):
-    await interaction.response.send_message("📦 請輸入交易物品內容:", ephemeral=True)
-    def check(m): return m.author == interaction.user and m.channel == interaction.channel
+@app_commands.describe(
+    item="交易物品內容",
+    price="交易價錢",
+    mention_buyers="是否@買帳成員身分組 (是/否)"
+)
+async def trade(interaction: discord.Interaction, item: str, price: str, mention_buyers: str):
     try:
-        item_msg = await bot.wait_for('message', check=check, timeout=WAIT_TIME)
-        item_content = item_msg.content
-        await item_msg.delete()
-
-        await interaction.followup.send("💰 價錢為多少呢?", ephemeral=True)
-        price_msg = await bot.wait_for('message', check=check, timeout=WAIT_TIME)
-        price_content = price_msg.content
-        await price_msg.delete()
-
-        await interaction.followup.send("🫂 是否要 @買帳成員身分組? (是/否)", ephemeral=True)
-        role_msg = await bot.wait_for('message', check=check, timeout=WAIT_TIME)
-        role_response = role_msg.content
-        await role_msg.delete()
-
-        mention = f"<@&{BUYERS_ROLE_ID}>" if role_response.lower() == "是" else ""
-
-        # 生成交易編號
+        mention = f"<@&{BUYERS_ROLE_ID}>" if mention_buyers.lower() == "是" else ""
         trade_id = generate_trade_id()
-        await interaction.followup.send(f"🆔 你的交易編號是：{trade_id}", ephemeral=True)
 
-        # 發布交易訊息
-        await interaction.channel.send(f"{mention}\n🛒 買賣交易內容:\n物品: {item_content}\n價錢: {price_content}\n編號: {trade_id}")
+        # 回覆用戶交易編號
+        await interaction.response.send_message(f"🆔 交易編號: {trade_id}\n{mention}\n物品: {item}\n價錢: {price}\n正在建立交易頻道...", ephemeral=True)
 
-        # 建立交易頻道
+        # 建立公開交易頻道
         guild = interaction.guild
         author = interaction.user
         overwrites = {
-            guild.default_role: discord.PermissionOverwrite(read_messages=False),
-            author: discord.PermissionOverwrite(read_messages=True, send_messages=True),
-        }
-        category = guild.get_channel(TRADE_CATEGORY_ID)
-        channel = await guild.create_text_channel(
-            name=f"trade-{trade_id}",
-            overwrites=overwrites,
-            category=category,
-            topic=f"交易編號 {trade_id} 由 {author} 建立"
-        )
-
-        # 完成交易按鈕
-        class CompleteButton(discord.ui.View):
-            @discord.ui.button(label="完成交易", style=discord.ButtonStyle.green)
-            async def complete(self, button, button_interaction: discord.Interaction):
-                messages = []
-                async for msg in channel.history(limit=None, oldest_first=True):
-                    timestamp = msg.created_at.strftime("%Y-%m-%d %H:%M:%S")
-                    messages.append(f"[{timestamp}] {msg.author}: {msg.content}")
-                filename = os.path.join(LOG_FOLDER, f"trade_{trade_id}.txt")
-                with open(filename, "w", encoding="utf-8") as f:
-                    f.write("\n".join(messages))
-                await button_interaction.response.send_message(f"✅ 交易完成，紀錄已保存: `{filename}`", ephemeral=True)
-                await channel.delete()
-
-        await channel.send(f"🛒 交易 {trade_id} 開始，由 {author.mention} 建立。", view=CompleteButton())
-        await interaction.followup.send("✅ 交易訊息已發布並建立交易頻道！", ephemeral=True)
-
-    except Exception as e:
-        await interaction.followup.send("⚠️ 超時或錯誤，請重新操作。", ephemeral=True)
-        print(e)
-
-# ---------- /我要交易 指令（手動編號） ----------
-@bot.tree.command(name="我要交易", description="手動輸入交易編號建立交易頻道")
-@app_commands.describe(trade_id="請輸入交易編號")
-async def start_trade(interaction: discord.Interaction, trade_id: str):
-    guild = interaction.guild
-    author = interaction.user
-
-    existing_channel = discord.utils.get(guild.channels, name=f"trade-{trade_id}")
-    if existing_channel:
-        await interaction.response.send_message("⚠️ 此交易編號已存在！", ephemeral=True)
-        return
-
-    # 先回應用戶，避免超時
-    await interaction.response.send_message(f"🔧 正在建立交易頻道 `{trade_id}`...", ephemeral=True)
-
-    try:
-        overwrites = {
-            guild.default_role: discord.PermissionOverwrite(read_messages=False),
-            author: discord.PermissionOverwrite(read_messages=True, send_messages=True),
+            guild.default_role: discord.PermissionOverwrite(read_messages=True, send_messages=True)
         }
         category = guild.get_channel(TRADE_CATEGORY_ID)
         channel = await guild.create_text_channel(
@@ -194,42 +133,28 @@ async def start_trade(interaction: discord.Interaction, trade_id: str):
 
         await channel.send(f"🛒 交易 {trade_id} 開始，由 {author.mention} 建立。", view=CompleteButton())
 
-        # 更新用戶回應訊息（可選）
-        await interaction.followup.send(f"✅ 交易頻道已建立: {channel.mention}", ephemeral=True)
-
-    except discord.Forbidden:
-        await interaction.followup.send("❌ 無法建立頻道，請檢查 Bot 權限", ephemeral=True)
     except Exception as e:
         await interaction.followup.send(f"❌ 發生錯誤: {e}", ephemeral=True)
+        print(e)
 
+# ---------- /我要交易 指令（導引至已有頻道） ----------
+@bot.tree.command(name="我要交易", description="進入已存在的交易頻道")
+@app_commands.describe(trade_id="請輸入交易編號")
+async def join_trade(interaction: discord.Interaction, trade_id: str):
+    guild = interaction.guild
+    channel_name = f"trade-{trade_id}"
+    channel = discord.utils.get(guild.channels, name=channel_name)
 
-    overwrites = {
-        guild.default_role: discord.PermissionOverwrite(read_messages=False),
-        author: discord.PermissionOverwrite(read_messages=True, send_messages=True),
-    }
-    category = guild.get_channel(TRADE_CATEGORY_ID)
-    channel = await guild.create_text_channel(
-        name=f"trade-{trade_id}",
-        overwrites=overwrites,
-        category=category,
-        topic=f"交易編號 {trade_id} 由 {author} 建立"
-    )
-
-    class CompleteButton(discord.ui.View):
-        @discord.ui.button(label="完成交易", style=discord.ButtonStyle.green)
-        async def complete(self, button, button_interaction: discord.Interaction):
-            messages = []
-            async for msg in channel.history(limit=None, oldest_first=True):
-                timestamp = msg.created_at.strftime("%Y-%m-%d %H:%M:%S")
-                messages.append(f"[{timestamp}] {msg.author}: {msg.content}")
-            filename = os.path.join(LOG_FOLDER, f"trade_{trade_id}.txt")
-            with open(filename, "w", encoding="utf-8") as f:
-                f.write("\n".join(messages))
-            await button_interaction.response.send_message(f"✅ 交易完成，紀錄已保存: `{filename}`", ephemeral=True)
-            await channel.delete()
-
-    await channel.send(f"🛒 交易 {trade_id} 開始，由 {author.mention} 建立。", view=CompleteButton())
-    await interaction.response.send_message(f"✅ 交易頻道已建立: {channel.mention}", ephemeral=True)
+    if channel:
+        await interaction.response.send_message(
+            f"🔗 交易頻道已存在: {channel.mention}，你可以進入該頻道進行交易。",
+            ephemeral=True
+        )
+    else:
+        await interaction.response.send_message(
+            "❌ 查無此交易編號，請確認輸入正確或等待頻道建立。",
+            ephemeral=True
+        )
 
 # ---------- 啟動 Discord Bot ----------
 TOKEN = os.environ.get("DISCORD_TOKEN")
