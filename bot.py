@@ -29,9 +29,10 @@ bot = commands.Bot(command_prefix="!", intents=intents)
 # 角色ID
 VERIFIED_ROLE_ID = 1442916731927396403
 BUYERS_ROLE_ID = 1442915193704157235
-TRADE_CATEGORY_ID = 123456789012345678  # 私密交易頻道類別
+TRADE_CATEGORY_ID = 123456789012345678
 LOG_FOLDER = "trade_logs"
 
+# ---------- 確保交易紀錄資料夾存在 ----------
 if not os.path.exists(LOG_FOLDER):
     os.makedirs(LOG_FOLDER)
 
@@ -97,18 +98,22 @@ def generate_trade_id():
 )
 async def trade(interaction: discord.Interaction, item: str, price: str, mention_buyers: str):
     try:
+        # ---------- 確保資料夾存在 ----------
+        if not os.path.exists(LOG_FOLDER):
+            os.makedirs(LOG_FOLDER)
+
         author = interaction.user
         trade_id = generate_trade_id()
         mention = f"<@&{BUYERS_ROLE_ID}>" if mention_buyers.lower() == "是" else ""
 
-        # ---------- 發送公共公告 ----------
+        # 公告頻道
         await interaction.response.send_message(
             f"{mention}\n🛒 交易 {trade_id} 開始，由 {author.mention} 建立。\n"
             f"物品: {item}\n價錢: {price}\n輸入 /我要交易 {trade_id} 進入私密頻道",
             ephemeral=False
         )
 
-        # ---------- 建立私密交易頻道 ----------
+        # 私密交易頻道
         guild = interaction.guild
         overwrites = {
             guild.default_role: discord.PermissionOverwrite(read_messages=False),
@@ -124,7 +129,7 @@ async def trade(interaction: discord.Interaction, item: str, price: str, mention
 
         await channel.send(f"🛒 私密交易 {trade_id} 頻道，僅授權成員可見。")
 
-        # ---------- 完成交易按鈕（保險版） ----------
+        # 完成交易按鈕（保險版）
         class CompleteButton(discord.ui.View):
             def __init__(self, trade_id):
                 super().__init__()
@@ -133,27 +138,27 @@ async def trade(interaction: discord.Interaction, item: str, price: str, mention
             @discord.ui.button(label="完成交易", style=discord.ButtonStyle.green)
             async def complete(self, button, interaction: discord.Interaction):
                 try:
-                    # 先 defer 避免交互超時
+                    # defer 避免交互失敗
                     await interaction.response.defer(ephemeral=True)
 
-                    # 讀取頻道歷史
+                    # 再次確保資料夾存在
+                    if not os.path.exists(LOG_FOLDER):
+                        os.makedirs(LOG_FOLDER)
+
                     messages = []
                     async for msg in interaction.channel.history(limit=None, oldest_first=True):
                         timestamp = msg.created_at.strftime("%Y-%m-%d %H:%M:%S")
                         messages.append(f"[{timestamp}] {msg.author}: {msg.content}")
 
-                    # 存檔
                     filename = os.path.join(LOG_FOLDER, f"trade_{self.trade_id}.txt")
                     with open(filename, "w", encoding="utf-8") as f:
                         f.write("\n".join(messages))
 
-                    # 回覆使用者
                     await interaction.followup.send(
                         f"✅ 交易完成，紀錄已保存: `{filename}`",
                         ephemeral=True
                     )
 
-                    # 等待 1 秒再刪除頻道，保險
                     await discord.utils.sleep_until(discord.utils.utcnow() + datetime.timedelta(seconds=1))
                     await interaction.channel.delete()
                 except Exception as e:
