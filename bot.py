@@ -1,5 +1,5 @@
 import discord
-from discord.ext import commands
+from discord.ext import commands, tasks
 from discord import app_commands
 import os
 import datetime
@@ -59,6 +59,12 @@ if not os.path.exists(LOG_FOLDER):
     os.makedirs(LOG_FOLDER)
 
 # ==========================================================
+#                   🔥 自動公告排程變數
+# ==========================================================
+temp_schedules = []       # 臨時排程公告
+weekly_schedules = []     # 每週固定星期公告
+
+# ==========================================================
 #                       🔥 Bot Ready
 # ==========================================================
 @bot.event
@@ -70,29 +76,28 @@ async def on_ready():
     except Exception as e:
         print(e)
 
+    # ⭐ 開始自動排程任務
+    if not auto_announce_task.is_running():
+        auto_announce_task.start()
+        print("Auto announcement task started.")
+
 # ==========================================================
 #                       🔥 /公告 指令
 # ==========================================================
 @bot.tree.command(name="公告", description="發布一則公告")
 async def announce(interaction: discord.Interaction):
-    # 限制頻道
     if interaction.channel_id != ANNOUNCE_CHANNEL_ID:
         return await interaction.response.send_message("❌ 請到指定頻道使用此指令。", ephemeral=True)
-
-    # 使用中檢查
     status = COMMAND_STATUS.get("公告", False)
     if status == "維修":
         return await interaction.response.send_message("🔧 此指令維修中", ephemeral=True)
     elif status == True:
         return await interaction.response.send_message("🟡 此指令正在使用中", ephemeral=True)
-
     COMMAND_STATUS["公告"] = True
 
     try:
         await interaction.response.send_message("📝 請輸入公告內容:", ephemeral=True)
-
         def check(m): return m.author == interaction.user and m.channel == interaction.channel
-
         msg = await bot.wait_for('message', check=check, timeout=60)
         content = msg.content
         await msg.delete()
@@ -111,9 +116,7 @@ async def announce(interaction: discord.Interaction):
         sent_msg = await interaction.channel.send(f"{mention}\n📢 公告內容:\n{content}")
         if pin_response.lower() == "是":
             await sent_msg.pin()
-
         await interaction.followup.send("✅ 公告已發布！", ephemeral=True)
-
     except Exception as e:
         await interaction.followup.send("⚠️ 超時或錯誤，請重新操作。", ephemeral=True)
         print(e)
@@ -145,13 +148,11 @@ def generate_trade_id(guild):
 async def trade(interaction: discord.Interaction, item: str, price: str, mention_buyers: str):
     if interaction.channel_id != TRADE_CHANNEL_ID:
         return await interaction.response.send_message("❌ 請到指定頻道使用此指令。", ephemeral=True)
-
     status = COMMAND_STATUS.get("買賣交易", False)
     if status == "維修":
         return await interaction.response.send_message("🔧 此指令維修中", ephemeral=True)
     elif status == True:
         return await interaction.response.send_message("🟡 此指令正在使用中", ephemeral=True)
-
     COMMAND_STATUS["買賣交易"] = True
 
     try:
@@ -184,7 +185,6 @@ async def trade(interaction: discord.Interaction, item: str, price: str, mention
             topic=f"交易編號 {trade_id} 由 {author} 建立"
         )
         await channel.send(f"🛒 私密交易 {trade_id} 頻道，僅授權成員可見。")
-
     finally:
         COMMAND_STATUS["買賣交易"] = False
 
@@ -199,8 +199,8 @@ async def join_trade(interaction: discord.Interaction, trade_id: str):
         return await interaction.response.send_message("🔧 此指令維修中", ephemeral=True)
     elif status == True:
         return await interaction.response.send_message("🟡 此指令正在使用中", ephemeral=True)
-
     COMMAND_STATUS["我要交易"] = True
+
     try:
         guild = interaction.guild
         channel_name = f"trade-{trade_id}"
@@ -210,7 +210,6 @@ async def join_trade(interaction: discord.Interaction, trade_id: str):
 
         await channel.set_permissions(interaction.user, read_messages=True, send_messages=True)
         await interaction.response.send_message(f"🔑 你已被授權進入交易頻道: {channel.mention}", ephemeral=True)
-
     finally:
         COMMAND_STATUS["我要交易"] = False
 
@@ -225,8 +224,8 @@ async def complete_trade(interaction: discord.Interaction, trade_id: str):
         return await interaction.response.send_message("🔧 此指令維修中", ephemeral=True)
     elif status == True:
         return await interaction.response.send_message("🟡 此指令正在使用中", ephemeral=True)
-
     COMMAND_STATUS["完成交易"] = True
+
     try:
         guild = interaction.guild
         channel_name = f"trade-{trade_id}"
@@ -246,7 +245,6 @@ async def complete_trade(interaction: discord.Interaction, trade_id: str):
         await interaction.response.send_message("✅ 交易完成，紀錄已儲存。", ephemeral=True)
         await asyncio.sleep(1)
         await channel.delete()
-
     finally:
         COMMAND_STATUS["完成交易"] = False
 
@@ -261,8 +259,8 @@ async def query_trade(interaction: discord.Interaction, trade_id: str):
         return await interaction.response.send_message("🔧 此指令維修中", ephemeral=True)
     elif status == True:
         return await interaction.response.send_message("🟡 此指令正在使用中", ephemeral=True)
-
     COMMAND_STATUS["查詢交易"] = True
+
     try:
         if interaction.channel_id != QUERY_CHANNEL_ID:
             return await interaction.response.send_message("❌ 請到指定頻道使用此指令。", ephemeral=True)
@@ -284,138 +282,75 @@ async def query_trade(interaction: discord.Interaction, trade_id: str):
         COMMAND_STATUS["查詢交易"] = False
 
 # ==========================================================
-#                   🔥 自動公告排程系統
-# ==========================================================
-import json
-from discord.ext import tasks
-
-SCHEDULE_FILE = "scheduled_announcements.json"
-
-# 若沒有排程檔案就創建
-if not os.path.exists(SCHEDULE_FILE):
-    with open(SCHEDULE_FILE, "w", encoding="utf-8") as f:
-        json.dump([], f, ensure_ascii=False, indent=4)
-
-# 讀取排程
-def load_schedules():
-    with open(SCHEDULE_FILE, "r", encoding="utf-8") as f:
-        return json.load(f)
-
-# 寫入排程
-def save_schedules(data):
-    with open(SCHEDULE_FILE, "w", encoding="utf-8") as f:
-        json.dump(data, f, ensure_ascii=False, indent=4)
-
-# ==========================================================
-#               🔥 自動公告背景任務（每 30 秒檢查）
+#                   🔥 自動公告背景任務（每 30 秒檢查）
 # ==========================================================
 @tasks.loop(seconds=30)
 async def auto_announce_task():
-    schedules = load_schedules()
-    now = datetime.datetime.now().strftime("%Y-%m-%d %H:%M")
+    now = datetime.datetime.now()
+    now_str = now.strftime("%Y-%m-%d %H:%M")
 
+    # 臨時排程
     to_remove = []
-
-    for task_data in schedules:
-        if task_data["time"] == now:
-            channel = bot.get_channel(task_data["channel_id"])
+    for task in temp_schedules:
+        if task["time"] == now_str:
+            channel = bot.get_channel(task["channel_id"])
             if channel:
-                mention = f"<@&{VERIFIED_ROLE_ID}>" if task_data["mention_verified"] else ""
-                await channel.send(f"{mention}\n📢 **自動公告：**\n{task_data['content']}")
+                mention = f"<@&{VERIFIED_ROLE_ID}>" if task["mention_verified"] else ""
+                await channel.send(f"{mention}\n📢 **自動公告：**\n{task['content']}")
+            to_remove.append(task)
+    for task in to_remove:
+        temp_schedules.remove(task)
 
-            to_remove.append(task_data)
-
-    # 移除已執行排程
-    if to_remove:
-        for t in to_remove:
-            schedules.remove(t)
-        save_schedules(schedules)
-
-# ready 事件整合：不要取代你原本的，只需加入背景任務啟動
-@bot.event
-async def on_ready():
-    print(f"Logged in as {bot.user}")
-
-    try:
-        await bot.tree.sync()
-        print("Slash commands synced.")
-    except Exception as e:
-        print(e)
-
-    # ⭐ 開始自動排程任務
-    if not auto_announce_task.is_running():
-        auto_announce_task.start()
-        print("Auto announcement task started.")
-
-# ==========================================================
-#                   🔥 /新增自動公告
-# ==========================================================
-@bot.tree.command(name="新增自動公告", description="設定自動公告排程")
-@app_commands.describe(
-    time="格式：YYYY-MM-DD HH:MM",
-    content="公告內容",
-    mention_verified="是否 @已驗證身分組 (是/否)"
-)
-async def add_auto_announce(interaction: discord.Interaction, time: str, content: str, mention_verified: str):
-
-    schedules = load_schedules()
-
-    schedules.append({
-        "time": time,
-        "content": content,
-        "mention_verified": mention_verified == "是",
-        "channel_id": interaction.channel_id
-    })
-
-    save_schedules(schedules)
-
-    await interaction.response.send_message(
-        f"⏰ 已新增排程公告：\n"
-        f"• 時間：{time}\n"
-        f"• 內容：{content}\n"
-        f"• @已驗證：{'是' if mention_verified == '是' else '否'}",
-        ephemeral=True
-    )
+    # 每週排程
+    for task in weekly_schedules:
+        if now.weekday() == task["weekday"] and now.hour == task["hour"] and now.minute == task["minute"]:
+            channel = bot.get_channel(task["channel_id"])
+            if channel:
+                mention = f"<@&{VERIFIED_ROLE_ID}>" if task["mention_verified"] else ""
+                await channel.send(f"{mention}\n📢 **每週公告：**\n{task['content']}")
 
 # ==========================================================
 #                   🔥 /查看排程
 # ==========================================================
-@bot.tree.command(name="查看排程", description="查看所有自動公告排程")
+@bot.tree.command(name="查看排程", description="查看所有排程公告")
 async def view_schedule(interaction: discord.Interaction):
-    schedules = load_schedules()
-    if not schedules:
-        return await interaction.response.send_message("📭 目前沒有任何排程公告。", ephemeral=True)
+    msg = "**📋 臨時排程公告**\n"
+    if temp_schedules:
+        for idx, t in enumerate(temp_schedules, start=1):
+            msg += f"{idx}. {t['time']} — {t['content']} (@已驗證: {'是' if t['mention_verified'] else '否'})\n"
+    else:
+        msg += "無\n"
 
-    msg = "📋 **排程公告列表：**\n\n"
-    for idx, t in enumerate(schedules, start=1):
-        msg += (
-            f"**# {idx}**\n"
-            f"• 時間：{t['time']}\n"
-            f"• 內容：{t['content']}\n"
-            f"• @已驗證：{'是' if t['mention_verified'] else '否'}\n"
-            f"• 頻道：<#{t['channel_id']}>\n\n"
-        )
+    msg += "\n**📋 每週排程公告**\n"
+    if weekly_schedules:
+        for idx, t in enumerate(weekly_schedules, start=1):
+            msg += f"{idx}. 星期{t['weekday']} {t['hour']:02d}:{t['minute']:02d} — {t['content']} (@已驗證: {'是' if t['mention_verified'] else '否'})\n"
+    else:
+        msg += "無\n"
 
     await interaction.response.send_message(msg, ephemeral=True)
 
 # ==========================================================
-#                   🔥 /刪除排程
+#                   🔥 /新增每週公告
 # ==========================================================
-@bot.tree.command(name="刪除排程", description="刪除指定自動公告排程")
-@app_commands.describe(index="排程編號（在 /查看排程 查看）")
-async def delete_schedule(interaction: discord.Interaction, index: int):
-    schedules = load_schedules()
-
-    if index < 1 or index > len(schedules):
-        return await interaction.response.send_message("❌ 無效的排程編號。", ephemeral=True)
-
-    removed = schedules.pop(index - 1)
-    save_schedules(schedules)
-
-    await interaction.response.send_message(
-        f"🗑️ 已刪除排程：{removed['time']} — {removed['content']}",
-        ephemeral=True
-    )
+@bot.tree.command(name="新增每週公告", description="設定每週固定星期幾公告")
+@app_commands.describe(
+    weekday="星期幾（0=週一, 6=週日）",
+    hour="小時 0~23",
+    minute="分鐘 0~59",
+    content="公告內容",
+    mention_verified="是否 @已驗證身分組 (是/否)"
+)
+async def add_weekly_announce(interaction: discord.Interaction, weekday: int, hour: int, minute: int, content: str, mention_verified: str):
+    weekly_schedules.append({
+        "weekday": weekday,
+        "hour": hour,
+        "minute": minute,
+        "content": content,
+        "mention_verified": mention_verified == "是",
+        "channel_id": interaction.channel_id
+    })
+    await interaction.response.send_message(f"✅ 已新增每週排程公告：星期{weekday} {hour:02d}:{minute:02d} — {content}", ephemeral=True)
 
 # ==========================================================
 #                       🔥 /查詢所有指令狀態
