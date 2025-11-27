@@ -1,6 +1,7 @@
 import discord
 from discord.ext import commands, tasks
 from discord import app_commands
+from discord.ui import View, Button
 import os
 import datetime
 import asyncio
@@ -342,10 +343,10 @@ async def query_all_commands(interaction: discord.Interaction):
 from discord.ui import View, Button
 
 # ==========================================================
-# 🔥 超炫星際操作手冊 分頁版
+# 🔥 超炫星際操作手冊 分頁版（附關閉按鈕）
 # ==========================================================
-@bot.tree.command(name="星際手冊進階", description="超炫多分頁星際指令手冊")
-async def star_manual_pages(interaction: discord.Interaction):
+@bot.tree.command(name="星際手冊進階", description="超炫多分頁星際指令手冊（可關閉）")
+async def star_manual_pages_close(interaction: discord.Interaction):
     # 建立多個 Embed
     embeds = []
 
@@ -359,7 +360,7 @@ async def star_manual_pages(interaction: discord.Interaction):
                     "🔍 系統狀態",
         color=0x1E90FF
     )
-    embed1.set_footer(text="使用下方按鈕翻頁查看更多細節")
+    embed1.set_footer(text="使用下方按鈕翻頁查看更多細節或關閉手冊")
     embeds.append(embed1)
 
     # 分頁 2: 公告系統
@@ -384,7 +385,7 @@ async def star_manual_pages(interaction: discord.Interaction):
     embeds.append(embed4)
 
     # ==========================================================
-    # 🔥 翻頁按鈕
+    # 🔥 翻頁與關閉按鈕
     # ==========================================================
     class ManualView(View):
         def __init__(self, embeds):
@@ -404,6 +405,11 @@ async def star_manual_pages(interaction: discord.Interaction):
         async def next(self, button: Button, interaction: discord.Interaction):
             self.index = (self.index + 1) % len(self.embeds)
             await self.update_message(interaction)
+
+        @discord.ui.button(label="❌ 關閉手冊", style=discord.ButtonStyle.danger)
+        async def close(self, button: Button, interaction: discord.Interaction):
+            await interaction.message.delete()
+            self.stop()  # 停止 View，按鈕無法再使用
 
     view = ManualView(embeds)
     await interaction.response.send_message(embed=embeds[0], view=view, ephemeral=False)
