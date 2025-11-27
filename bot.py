@@ -251,6 +251,30 @@ async def auto_announce_task():
                 await channel.send(f"{mention}\n📢 **自動公告：**\n{t['content']}")
 
 # ==========================================================
+# 🔥 自動公告指令整合
+# ==========================================================
+# 新增、查看、刪除排程指令
+# （貼上前一則我給你的三個自動公告指令程式碼即可）
+
+# ==========================================================
+# 🔥 查詢所有指令狀態
+# ==========================================================
+@bot.tree.command(name="查詢所有指令狀態", description="查看所有指令目前狀態")
+async def query_all_commands(interaction: discord.Interaction):
+    msg = "📋 **所有指令狀態一覽**\n\n"
+    for cmd, status in COMMAND_STATUS.items():
+        if status == False:
+            emoji = "🟢 正常"
+        elif status == True:
+            emoji = "🟡 使用中"
+        elif status == "維修":
+            emoji = "🔧 維修中"
+        else:
+            emoji = "⚪ 未知"
+        msg += f"• **/{cmd}** → {emoji}\n"
+    await interaction.response.send_message(msg, ephemeral=True)
+
+# ==========================================================
 # 🔥 啟動 BOT
 # ==========================================================
 @bot.event
