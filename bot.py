@@ -384,33 +384,41 @@ async def star_manual_pages_close(interaction: discord.Interaction):
     embed4.add_field(name="🔍 /查詢所有指令狀態", value="查看所有指令目前狀態\n範例: `/查詢所有指令狀態`", inline=False)
     embeds.append(embed4)
 
-# ==========================================================
-# 🔥 翻頁與關閉按鈕
-# ==========================================================
-class ManualView(View):
-    def __init__(self, embeds):
-        super().__init__(timeout=None)
-        self.embeds = embeds
-        self.index = 0
+    # ==========================================================
+    # 🔥 翻頁與關閉按鈕
+    # ==========================================================
+    class ManualView(View):
+        def __init__(self, embeds):
+            super().__init__(timeout=None)
+            self.embeds = embeds
+            self.index = 0
 
-    async def update_message(self, interaction):
-        await interaction.response.edit_message(embed=self.embeds[self.index], view=self)
+        async def update_message(self, interaction: discord.Interaction):
+            # 嘗試回應 interaction，若已回應過則使用 followup
+            try:
+                await interaction.response.edit_message(embed=self.embeds[self.index], view=self)
+            except discord.InteractionResponded:
+                await interaction.followup.edit_message(interaction.message.id, embed=self.embeds[self.index], view=self)
 
-    @discord.ui.button(label="⬅️ 上一頁", style=discord.ButtonStyle.primary)
-    async def previous(self, button: Button, interaction: discord.Interaction):
-        self.index = (self.index - 1) % len(self.embeds)
-        await self.update_message(interaction)
+        @discord.ui.button(label="⬅️ 上一頁", style=discord.ButtonStyle.primary)
+        async def previous(self, button: Button, interaction: discord.Interaction):
+            self.index = (self.index - 1) % len(self.embeds)
+            await self.update_message(interaction)
 
-    @discord.ui.button(label="➡️ 下一頁", style=discord.ButtonStyle.primary)
-    async def next(self, button: Button, interaction: discord.Interaction):
-        self.index = (self.index + 1) % len(self.embeds)
-        await self.update_message(interaction)
+        @discord.ui.button(label="➡️ 下一頁", style=discord.ButtonStyle.primary)
+        async def next(self, button: Button, interaction: discord.Interaction):
+            self.index = (self.index + 1) % len(self.embeds)
+            await self.update_message(interaction)
 
-    @discord.ui.button(label="❌ 關閉手冊", style=discord.ButtonStyle.danger)
-    async def close(self, button: Button, interaction: discord.Interaction):
-        await interaction.response.send_message("❌ 手冊已關閉", ephemeral=True)
-        await interaction.message.delete()
-        self.stop()
+        @discord.ui.button(label="❌ 關閉手冊", style=discord.ButtonStyle.danger)
+        async def close(self, button: Button, interaction: discord.Interaction):
+            await interaction.response.defer()  # 確保 interaction 不會超時
+            await interaction.message.delete()
+            self.stop()
+
+    view = ManualView(embeds)
+    await interaction.response.send_message(embed=embeds[0], view=view, ephemeral=False)
+
 
 
 # ==========================================================
