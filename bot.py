@@ -384,10 +384,10 @@ async def star_manual_pages_close(interaction: discord.Interaction):
     embed4.add_field(name="🔍 /查詢所有指令狀態", value="查看所有指令目前狀態\n範例: `/查詢所有指令狀態`", inline=False)
     embeds.append(embed4)
 
-    # ==========================================================
-    # 🔥 翻頁與關閉按鈕
-    # ==========================================================
-    class ManualView(View):
+# ==========================================================
+# 🔥 翻頁與關閉按鈕
+# ==========================================================
+class ManualView(View):
     def __init__(self, embeds):
         super().__init__(timeout=None)
         self.embeds = embeds
@@ -408,10 +408,10 @@ async def star_manual_pages_close(interaction: discord.Interaction):
 
     @discord.ui.button(label="❌ 關閉手冊", style=discord.ButtonStyle.danger)
     async def close(self, button: Button, interaction: discord.Interaction):
-        # 先回覆 interaction，避免 Interaction failed
         await interaction.response.send_message("❌ 手冊已關閉", ephemeral=True)
         await interaction.message.delete()
         self.stop()
+
 
 # ==========================================================
 # 🔥 啟動 BOT
