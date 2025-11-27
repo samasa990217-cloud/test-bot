@@ -297,3 +297,9 @@ async def auto_announce_task():
             if channel:
                 mention = f"<@&{VERIFIED_ROLE_ID}>" if ann["mention_verified"] else ""
                 await channel.send(f"{mention}\n📢 **每週自動公告：**\n{ann['content']}")
+# ==========================================================
+#                       🔥 啟動 Bot
+# ==========================================================
+TOKEN = os.environ.get("DISCORD_TOKEN")  # 或直接填你的 token 字串
+bot.run(TOKEN)
+
