@@ -284,6 +284,140 @@ async def query_trade(interaction: discord.Interaction, trade_id: str):
         COMMAND_STATUS["查詢交易"] = False
 
 # ==========================================================
+#                   🔥 自動公告排程系統
+# ==========================================================
+import json
+from discord.ext import tasks
+
+SCHEDULE_FILE = "scheduled_announcements.json"
+
+# 若沒有排程檔案就創建
+if not os.path.exists(SCHEDULE_FILE):
+    with open(SCHEDULE_FILE, "w", encoding="utf-8") as f:
+        json.dump([], f, ensure_ascii=False, indent=4)
+
+# 讀取排程
+def load_schedules():
+    with open(SCHEDULE_FILE, "r", encoding="utf-8") as f:
+        return json.load(f)
+
+# 寫入排程
+def save_schedules(data):
+    with open(SCHEDULE_FILE, "w", encoding="utf-8") as f:
+        json.dump(data, f, ensure_ascii=False, indent=4)
+
+# ==========================================================
+#               🔥 自動公告背景任務（每 30 秒檢查）
+# ==========================================================
+@tasks.loop(seconds=30)
+async def auto_announce_task():
+    schedules = load_schedules()
+    now = datetime.datetime.now().strftime("%Y-%m-%d %H:%M")
+
+    to_remove = []
+
+    for task_data in schedules:
+        if task_data["time"] == now:
+            channel = bot.get_channel(task_data["channel_id"])
+            if channel:
+                mention = f"<@&{VERIFIED_ROLE_ID}>" if task_data["mention_verified"] else ""
+                await channel.send(f"{mention}\n📢 **自動公告：**\n{task_data['content']}")
+
+            to_remove.append(task_data)
+
+    # 移除已執行排程
+    if to_remove:
+        for t in to_remove:
+            schedules.remove(t)
+        save_schedules(schedules)
+
+# ready 事件整合：不要取代你原本的，只需加入背景任務啟動
+@bot.event
+async def on_ready():
+    print(f"Logged in as {bot.user}")
+
+    try:
+        await bot.tree.sync()
+        print("Slash commands synced.")
+    except Exception as e:
+        print(e)
+
+    # ⭐ 開始自動排程任務
+    if not auto_announce_task.is_running():
+        auto_announce_task.start()
+        print("Auto announcement task started.")
+
+# ==========================================================
+#                   🔥 /新增自動公告
+# ==========================================================
+@bot.tree.command(name="新增自動公告", description="設定自動公告排程")
+@app_commands.describe(
+    time="格式：YYYY-MM-DD HH:MM",
+    content="公告內容",
+    mention_verified="是否 @已驗證身分組 (是/否)"
+)
+async def add_auto_announce(interaction: discord.Interaction, time: str, content: str, mention_verified: str):
+
+    schedules = load_schedules()
+
+    schedules.append({
+        "time": time,
+        "content": content,
+        "mention_verified": mention_verified == "是",
+        "channel_id": interaction.channel_id
+    })
+
+    save_schedules(schedules)
+
+    await interaction.response.send_message(
+        f"⏰ 已新增排程公告：\n"
+        f"• 時間：{time}\n"
+        f"• 內容：{content}\n"
+        f"• @已驗證：{'是' if mention_verified == '是' else '否'}",
+        ephemeral=True
+    )
+
+# ==========================================================
+#                   🔥 /查看排程
+# ==========================================================
+@bot.tree.command(name="查看排程", description="查看所有自動公告排程")
+async def view_schedule(interaction: discord.Interaction):
+    schedules = load_schedules()
+    if not schedules:
+        return await interaction.response.send_message("📭 目前沒有任何排程公告。", ephemeral=True)
+
+    msg = "📋 **排程公告列表：**\n\n"
+    for idx, t in enumerate(schedules, start=1):
+        msg += (
+            f"**# {idx}**\n"
+            f"• 時間：{t['time']}\n"
+            f"• 內容：{t['content']}\n"
+            f"• @已驗證：{'是' if t['mention_verified'] else '否'}\n"
+            f"• 頻道：<#{t['channel_id']}>\n\n"
+        )
+
+    await interaction.response.send_message(msg, ephemeral=True)
+
+# ==========================================================
+#                   🔥 /刪除排程
+# ==========================================================
+@bot.tree.command(name="刪除排程", description="刪除指定自動公告排程")
+@app_commands.describe(index="排程編號（在 /查看排程 查看）")
+async def delete_schedule(interaction: discord.Interaction, index: int):
+    schedules = load_schedules()
+
+    if index < 1 or index > len(schedules):
+        return await interaction.response.send_message("❌ 無效的排程編號。", ephemeral=True)
+
+    removed = schedules.pop(index - 1)
+    save_schedules(schedules)
+
+    await interaction.response.send_message(
+        f"🗑️ 已刪除排程：{removed['time']} — {removed['content']}",
+        ephemeral=True
+    )
+
+# ==========================================================
 #                       🔥 /查詢所有指令狀態
 # ==========================================================
 @bot.tree.command(name="查詢所有指令狀態", description="查看所有指令目前狀態")
