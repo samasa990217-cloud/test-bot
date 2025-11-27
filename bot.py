@@ -340,31 +340,73 @@ async def query_all_commands(interaction: discord.Interaction):
     await interaction.response.send_message(msg, ephemeral=True)
 
 # ==========================================================
-# 🔥 星際操作手冊 Embed 指令
+# 🔥 升級版星際操作手冊 Embed 指令
 # ==========================================================
-@bot.tree.command(name="星際手冊", description="顯示星際指令總覽")
-async def star_manual(interaction: discord.Interaction):
+@bot.tree.command(name="星際手冊", description="顯示星際指令總覽（升級版）")
+async def star_manual_advanced(interaction: discord.Interaction):
     embed = discord.Embed(
-        title="🚀 星際指令總覽",
-        description="歡迎進入 **星際操作手冊**，指揮官，以下為核心指令指南，助你掌控艦隊運作。",
-        color=0x1E90FF  # 冷色系藍
+        title="🚀 星際操作手冊 v2.0",
+        description="指揮官，歡迎來到艦橋控制面板。以下為核心指令指南與使用範例，助你掌控艦隊運作。",
+        color=0x1E90FF
     )
 
-    # 指令列表
-    embed.add_field(name="🛸 /公告", value="發布重要公告，確保全員即時接收最新訊息。", inline=False)
-    embed.add_field(name="🛰 /新增自動公告", value="設定自動公告排程\n• 固定排程: `/新增自動公告` → 選填 `weekday`、`hour`、`minute`\n• 臨時排程: `/新增自動公告` → 選填 `time`", inline=False)
-    embed.add_field(name="🗑 /刪除排程", value="移除指定自動公告排程，維持訊息整潔有序。", inline=False)
-    embed.add_field(name="📡 /查看排程", value="查詢所有已設定的自動公告排程，一目了然。", inline=False)
-    embed.add_field(name="💱 /我要交易", value="輸入交易編號，進入私密交易頻道，開始安全交易。", inline=False)
-    embed.add_field(name="✅ /完成交易", value="完成交易並自動存檔，方便日後紀錄管理。", inline=False)
-    embed.add_field(name="📜 /查詢交易", value="輸入交易編號查詢歷史交易紀錄，掌握所有動態。", inline=False)
-    embed.add_field(name="🔍 /查詢所有指令狀態", value="查看所有指令的運行狀態與管理資訊，確保系統穩定。", inline=False)
-    embed.add_field(name="💹 /買賣交易", value="發布買賣交易訊息並生成交易編號，讓交易流程更有序、可追蹤。", inline=False)
+    # 每個指令加上範例用法
+    embed.add_field(
+        name="🛸 /公告",
+        value="功能：發布重要公告，確保全員即時接收最新訊息。\n範例：`/公告` → 依提示輸入公告內容、是否 @已驗證、是否置頂",
+        inline=False
+    )
+    embed.add_field(
+        name="🛰 /新增自動公告",
+        value="功能：設定自動公告排程。\n範例：\n• 固定排程: `/新增自動公告 content:'公告內容' weekday:1 hour:12 minute:30 mention_verified:是`\n• 臨時排程: `/新增自動公告 content:'公告內容' time:'2025-11-28 15:00' mention_verified:否`",
+        inline=False
+    )
+    embed.add_field(
+        name="🗑 /刪除排程",
+        value="功能：移除指定自動公告排程。\n範例：`/刪除排程 index:1 type:臨時`",
+        inline=False
+    )
+    embed.add_field(
+        name="📡 /查看排程",
+        value="功能：查看所有自動公告排程。\n範例：`/查看排程`",
+        inline=False
+    )
+    embed.add_field(
+        name="💱 /我要交易",
+        value="功能：輸入交易編號進入私密交易頻道。\n範例：`/我要交易 trade_id:20251128001`",
+        inline=False
+    )
+    embed.add_field(
+        name="✅ /完成交易",
+        value="功能：完成交易並自動存檔。\n範例：`/完成交易 trade_id:20251128001`",
+        inline=False
+    )
+    embed.add_field(
+        name="📜 /查詢交易",
+        value="功能：查詢交易紀錄。\n範例：`/查詢交易 trade_id:20251128001`",
+        inline=False
+    )
+    embed.add_field(
+        name="🔍 /查詢所有指令狀態",
+        value="功能：查看所有指令的運行狀態。\n範例：`/查詢所有指令狀態`",
+        inline=False
+    )
+    embed.add_field(
+        name="💹 /買賣交易",
+        value="功能：發布買賣交易訊息並生成交易編號。\n範例：`/買賣交易 item:'激光炮' price:'5000' mention_buyers:是`",
+        inline=False
+    )
 
-    embed.set_footer(text="指揮官提示：所有指令均可在此艦橋操作，掌控資訊與交易流程。")
+    # 分隔線與提示
+    embed.add_field(
+        name="――――――――――――――――――――――――",
+        value="💡 提示：所有指令可在此艦橋操作，確保資訊掌控與交易流程安全。",
+        inline=False
+    )
+
+    embed.set_footer(text="指揮官提示：掌控全局，方能制勝星際戰場。")
 
     await interaction.response.send_message(embed=embed, ephemeral=False)
-
 
 # ==========================================================
 # 🔥 啟動 BOT
