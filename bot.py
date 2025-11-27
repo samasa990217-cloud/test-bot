@@ -8,7 +8,7 @@ from flask import Flask
 import threading
 
 # ==========================================================
-#                   🔥 Render KeepAlive
+# 🔥 Render KeepAlive
 # ==========================================================
 app = Flask("")
 
@@ -23,7 +23,7 @@ def run_flask():
 threading.Thread(target=run_flask).start()
 
 # ==========================================================
-#                   🔥 Discord Bot 設定
+# 🔥 Discord Bot 設定
 # ==========================================================
 intents = discord.Intents.default()
 intents.message_content = True
@@ -33,7 +33,7 @@ intents.members = True
 bot = commands.Bot(command_prefix="!", intents=intents)
 
 # ==========================================================
-#                   🔥 全域參數
+# 🔥 全域參數
 # ==========================================================
 VERIFIED_ROLE_ID = 1442916731927396403
 BUYERS_ROLE_ID = 1442915193704157235
@@ -62,13 +62,13 @@ if not os.path.exists(LOG_FOLDER):
     os.makedirs(LOG_FOLDER)
 
 # ==========================================================
-#                   🔥 排程列表（直接在程式內）
+# 🔥 排程清單
 # ==========================================================
-TEMP_ANNOUNCEMENTS = []   # 臨時公告（指定 YYYY-MM-DD HH:MM）
-WEEKLY_ANNOUNCEMENTS = [] # 固定每週公告（指定星期幾 + HH:MM）
+TEMP_ANNOUNCEMENTS = []   # 臨時公告 YYYY-MM-DD HH:MM
+WEEKLY_ANNOUNCEMENTS = [] # 固定每週公告 星期幾 + HH:MM
 
 # ==========================================================
-#                       🔥 交易系統
+# 🔥 交易系統
 # ==========================================================
 def generate_trade_id(guild):
     today_str = datetime.datetime.now().strftime("%Y%m%d")
@@ -90,10 +90,8 @@ async def trade(interaction: discord.Interaction, item: str, price: str, mention
     if interaction.channel_id != TRADE_CHANNEL_ID:
         return await interaction.response.send_message("❌ 請到指定頻道使用此指令。", ephemeral=True)
     status = COMMAND_STATUS.get("買賣交易", False)
-    if status == "維修":
-        return await interaction.response.send_message("🔧 此指令維修中", ephemeral=True)
-    elif status == True:
-        return await interaction.response.send_message("🟡 此指令正在使用中", ephemeral=True)
+    if status in [True, "維修"]:
+        return await interaction.response.send_message("🟡 指令忙碌或維修中", ephemeral=True)
     COMMAND_STATUS["買賣交易"] = True
     try:
         author = interaction.user
@@ -129,10 +127,8 @@ async def trade(interaction: discord.Interaction, item: str, price: str, mention
 @app_commands.describe(trade_id="請輸入交易編號")
 async def join_trade(interaction: discord.Interaction, trade_id: str):
     status = COMMAND_STATUS.get("我要交易", False)
-    if status == "維修":
-        return await interaction.response.send_message("🔧 此指令維修中", ephemeral=True)
-    elif status == True:
-        return await interaction.response.send_message("🟡 此指令正在使用中", ephemeral=True)
+    if status in [True, "維修"]:
+        return await interaction.response.send_message("🟡 指令忙碌或維修中", ephemeral=True)
     COMMAND_STATUS["我要交易"] = True
     try:
         guild = interaction.guild
@@ -149,10 +145,8 @@ async def join_trade(interaction: discord.Interaction, trade_id: str):
 @app_commands.describe(trade_id="請輸入交易編號")
 async def complete_trade(interaction: discord.Interaction, trade_id: str):
     status = COMMAND_STATUS.get("完成交易", False)
-    if status == "維修":
-        return await interaction.response.send_message("🔧 此指令維修中", ephemeral=True)
-    elif status == True:
-        return await interaction.response.send_message("🟡 此指令正在使用中", ephemeral=True)
+    if status in [True, "維修"]:
+        return await interaction.response.send_message("🟡 指令忙碌或維修中", ephemeral=True)
     COMMAND_STATUS["完成交易"] = True
     try:
         guild = interaction.guild
@@ -177,10 +171,8 @@ async def complete_trade(interaction: discord.Interaction, trade_id: str):
 @app_commands.describe(trade_id="請輸入交易編號")
 async def query_trade(interaction: discord.Interaction, trade_id: str):
     status = COMMAND_STATUS.get("查詢交易", False)
-    if status == "維修":
-        return await interaction.response.send_message("🔧 此指令維修中", ephemeral=True)
-    elif status == True:
-        return await interaction.response.send_message("🟡 此指令正在使用中", ephemeral=True)
+    if status in [True, "維修"]:
+        return await interaction.response.send_message("🟡 指令忙碌或維修中", ephemeral=True)
     COMMAND_STATUS["查詢交易"] = True
     try:
         if interaction.channel_id != QUERY_CHANNEL_ID:
@@ -200,7 +192,7 @@ async def query_trade(interaction: discord.Interaction, trade_id: str):
         COMMAND_STATUS["查詢交易"] = False
 
 # ==========================================================
-#                   🔥 公告系統
+# 🔥 公告系統
 # ==========================================================
 @bot.tree.command(name="公告", description="發布一則公告")
 async def announce(interaction: discord.Interaction):
@@ -237,7 +229,7 @@ async def announce(interaction: discord.Interaction):
         COMMAND_STATUS["公告"] = False
 
 # ==========================================================
-#                   🔥 自動公告排程系統
+# 🔥 自動公告排程系統
 # ==========================================================
 @tasks.loop(seconds=30)
 async def auto_announce_task():
@@ -259,7 +251,7 @@ async def auto_announce_task():
                 await channel.send(f"{mention}\n📢 **自動公告：**\n{t['content']}")
 
 # ==========================================================
-#                   🔥 啟動 BOT
+# 🔥 啟動 BOT
 # ==========================================================
 @bot.event
 async def on_ready():
