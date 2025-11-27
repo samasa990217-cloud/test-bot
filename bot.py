@@ -1,7 +1,6 @@
 import discord
 from discord.ext import commands, tasks
 from discord import app_commands
-from discord.ui import View, Button
 import os
 import datetime
 import asyncio
@@ -343,83 +342,73 @@ async def query_all_commands(interaction: discord.Interaction):
 from discord.ui import View, Button
 
 # ==========================================================
-# 🔥 超炫星際操作手冊 分頁版（附關閉按鈕）
+# 🔥 升級版星際操作手冊 Embed 指令
 # ==========================================================
-@bot.tree.command(name="星際手冊進階", description="超炫多分頁星際指令手冊（可關閉）")
-async def star_manual_pages_close(interaction: discord.Interaction):
-    # 建立多個 Embed
-    embeds = []
-
-    # 分頁 1: 總覽
-    embed1 = discord.Embed(
-        title="🚀 星際操作手冊 總覽",
-        description="指揮官，歡迎來到艦橋操作面板。以下為核心指令分類：\n\n"
-                    "🛸 公告系統\n"
-                    "📡 排程系統\n"
-                    "💱 交易系統\n"
-                    "🔍 系統狀態",
+@bot.tree.command(name="星際手冊", description="顯示星際指令總覽（升級版）")
+async def star_manual_advanced(interaction: discord.Interaction):
+    embed = discord.Embed(
+        title="🚀 星際操作手冊 v2.0",
+        description="指揮官，歡迎來到艦橋控制面板。以下為核心指令指南與使用範例，助你掌控艦隊運作。",
         color=0x1E90FF
     )
-    embed1.set_footer(text="使用下方按鈕翻頁查看更多細節或關閉手冊")
-    embeds.append(embed1)
 
-    # 分頁 2: 公告系統
-    embed2 = discord.Embed(title="🛸 公告系統", color=0x00BFFF)
-    embed2.add_field(name="📢 /公告", value="發布公告\n範例: `/公告` → 依提示輸入內容、是否置頂", inline=False)
-    embed2.add_field(name="🛰 /新增自動公告", value="設定自動公告排程\n範例:\n固定排程: `/新增自動公告 content:'公告' weekday:1 hour:12 minute:0 mention_verified:是`\n臨時排程: `/新增自動公告 content:'公告' time:'2025-11-28 15:00' mention_verified:否`", inline=False)
-    embed2.add_field(name="🗑 /刪除排程", value="刪除指定排程\n範例: `/刪除排程 index:1 type:臨時`", inline=False)
-    embed2.add_field(name="📡 /查看排程", value="查看所有排程\n範例: `/查看排程`", inline=False)
-    embeds.append(embed2)
+    # 每個指令加上範例用法
+    embed.add_field(
+        name="🛸 /公告",
+        value="功能：發布重要公告，確保全員即時接收最新訊息。\n範例：`/公告` → 依提示輸入公告內容、是否 @已驗證、是否置頂",
+        inline=False
+    )
+    embed.add_field(
+        name="🛰 /新增自動公告",
+        value="功能：設定自動公告排程。\n範例：\n• 固定排程: `/新增自動公告 content:'公告內容' weekday:1 hour:12 minute:30 mention_verified:是`\n• 臨時排程: `/新增自動公告 content:'公告內容' time:'2025-11-28 15:00' mention_verified:否`",
+        inline=False
+    )
+    embed.add_field(
+        name="🗑 /刪除排程",
+        value="功能：移除指定自動公告排程。\n範例：`/刪除排程 index:1 type:臨時`",
+        inline=False
+    )
+    embed.add_field(
+        name="📡 /查看排程",
+        value="功能：查看所有自動公告排程。\n範例：`/查看排程`",
+        inline=False
+    )
+    embed.add_field(
+        name="💱 /我要交易",
+        value="功能：輸入交易編號進入私密交易頻道。\n範例：`/我要交易 trade_id:20251128001`",
+        inline=False
+    )
+    embed.add_field(
+        name="✅ /完成交易",
+        value="功能：完成交易並自動存檔。\n範例：`/完成交易 trade_id:20251128001`",
+        inline=False
+    )
+    embed.add_field(
+        name="📜 /查詢交易",
+        value="功能：查詢交易紀錄。\n範例：`/查詢交易 trade_id:20251128001`",
+        inline=False
+    )
+    embed.add_field(
+        name="🔍 /查詢所有指令狀態",
+        value="功能：查看所有指令的運行狀態。\n範例：`/查詢所有指令狀態`",
+        inline=False
+    )
+    embed.add_field(
+        name="💹 /買賣交易",
+        value="功能：發布買賣交易訊息並生成交易編號。\n範例：`/買賣交易 item:'激光炮' price:'5000' mention_buyers:是`",
+        inline=False
+    )
 
-    # 分頁 3: 交易系統
-    embed3 = discord.Embed(title="💱 交易系統", color=0x00FFBF)
-    embed3.add_field(name="💱 /我要交易", value="輸入交易編號進入私密頻道\n範例: `/我要交易 trade_id:20251128001`", inline=False)
-    embed3.add_field(name="✅ /完成交易", value="完成交易並存檔\n範例: `/完成交易 trade_id:20251128001`", inline=False)
-    embed3.add_field(name="📜 /查詢交易", value="查詢交易紀錄\n範例: `/查詢交易 trade_id:20251128001`", inline=False)
-    embed3.add_field(name="💹 /買賣交易", value="發布交易訊息並生成編號\n範例: `/買賣交易 item:'激光炮' price:'5000' mention_buyers:是`", inline=False)
-    embeds.append(embed3)
+    # 分隔線與提示
+    embed.add_field(
+        name="――――――――――――――――――――――――",
+        value="💡 提示：所有指令可在此艦橋操作，確保資訊掌控與交易流程安全。",
+        inline=False
+    )
 
-    # 分頁 4: 系統狀態
-    embed4 = discord.Embed(title="🔍 系統狀態查詢", color=0xFFD700)
-    embed4.add_field(name="🔍 /查詢所有指令狀態", value="查看所有指令目前狀態\n範例: `/查詢所有指令狀態`", inline=False)
-    embeds.append(embed4)
+    embed.set_footer(text="指揮官提示：掌控全局，方能制勝星際戰場。")
 
-    # ==========================================================
-    # 🔥 翻頁與關閉按鈕
-    # ==========================================================
-    class ManualView(View):
-        def __init__(self, embeds):
-            super().__init__(timeout=None)
-            self.embeds = embeds
-            self.index = 0
-
-        async def update_message(self, interaction: discord.Interaction):
-            # 嘗試回應 interaction，若已回應過則使用 followup
-            try:
-                await interaction.response.edit_message(embed=self.embeds[self.index], view=self)
-            except discord.InteractionResponded:
-                await interaction.followup.edit_message(interaction.message.id, embed=self.embeds[self.index], view=self)
-
-        @discord.ui.button(label="⬅️ 上一頁", style=discord.ButtonStyle.primary)
-        async def previous(self, button: Button, interaction: discord.Interaction):
-            self.index = (self.index - 1) % len(self.embeds)
-            await self.update_message(interaction)
-
-        @discord.ui.button(label="➡️ 下一頁", style=discord.ButtonStyle.primary)
-        async def next(self, button: Button, interaction: discord.Interaction):
-            self.index = (self.index + 1) % len(self.embeds)
-            await self.update_message(interaction)
-
-        @discord.ui.button(label="❌ 關閉手冊", style=discord.ButtonStyle.danger)
-        async def close(self, button: Button, interaction: discord.Interaction):
-            await interaction.response.defer()  # 確保 interaction 不會超時
-            await interaction.message.delete()
-            self.stop()
-
-    view = ManualView(embeds)
-    await interaction.response.send_message(embed=embeds[0], view=view, ephemeral=False)
-
-
+    await interaction.response.send_message(embed=embed, ephemeral=False)
 
 # ==========================================================
 # 🔥 啟動 BOT
