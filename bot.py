@@ -3,13 +3,14 @@ from discord.ext import commands, tasks
 from discord import app_commands
 import os
 import datetime
-from flask import Flask
 import threading
 import asyncio
 
 # ==========================================================
 #                   🔥 Render KeepAlive
 # ==========================================================
+from flask import Flask
+
 app = Flask("")
 
 @app.route("/")
@@ -52,42 +53,38 @@ COMMAND_STATUS = {
     "買賣交易": False,
     "我要交易": False,
     "完成交易": False,
-    "查詢交易": False
+    "查詢交易": False,
+    "新增自動公告": False,
+    "查看排程": False,
+    "刪除排程": False,
+    "查詢所有指令狀態": False
 }
 
 if not os.path.exists(LOG_FOLDER):
     os.makedirs(LOG_FOLDER)
 
 # ==========================================================
-#                   🔥 自動公告排程變數
+#                       🔥 交易編號生成
 # ==========================================================
-temp_schedules = []       # 臨時排程公告
-weekly_schedules = []     # 每週固定星期公告
+def generate_trade_id(guild):
+    today_str = datetime.datetime.now().strftime("%Y%m%d")
+    existing_channels = [ch for ch in guild.channels if ch.name.startswith(f"trade-{today_str}")]
+    if not existing_channels:
+        count = 1
+    else:
+        nums = []
+        for ch in existing_channels:
+            suffix = ch.name.replace(f"trade-{today_str}", "")
+            if suffix.isdigit():
+                nums.append(int(suffix))
+        count = max(nums) + 1 if nums else 1
+    return f"{today_str}{count:03d}"
 
 # ==========================================================
-#                       🔥 Bot Ready
-# ==========================================================
-@bot.event
-async def on_ready():
-    print(f"Logged in as {bot.user}")
-    try:
-        await bot.tree.sync()
-        print("Slash commands synced.")
-    except Exception as e:
-        print(e)
-
-    # ⭐ 開始自動排程任務
-    if not auto_announce_task.is_running():
-        auto_announce_task.start()
-        print("Auto announcement task started.")
-
-# ==========================================================
-#                       🔥 /公告 指令
+#                       🔥 /公告 指令（固定頻道）
 # ==========================================================
 @bot.tree.command(name="公告", description="發布一則公告")
 async def announce(interaction: discord.Interaction):
-    if interaction.channel_id != ANNOUNCE_CHANNEL_ID:
-        return await interaction.response.send_message("❌ 請到指定頻道使用此指令。", ephemeral=True)
     status = COMMAND_STATUS.get("公告", False)
     if status == "維修":
         return await interaction.response.send_message("🔧 此指令維修中", ephemeral=True)
@@ -113,7 +110,8 @@ async def announce(interaction: discord.Interaction):
         pin_response = pin_msg.content
         await pin_msg.delete()
 
-        sent_msg = await interaction.channel.send(f"{mention}\n📢 公告內容:\n{content}")
+        channel = bot.get_channel(ANNOUNCE_CHANNEL_ID)
+        sent_msg = await channel.send(f"{mention}\n📢 公告內容:\n{content}")
         if pin_response.lower() == "是":
             await sent_msg.pin()
         await interaction.followup.send("✅ 公告已發布！", ephemeral=True)
@@ -122,23 +120,6 @@ async def announce(interaction: discord.Interaction):
         print(e)
     finally:
         COMMAND_STATUS["公告"] = False
-
-# ==========================================================
-#                       🔥 交易編號生成
-# ==========================================================
-def generate_trade_id(guild):
-    today_str = datetime.datetime.now().strftime("%Y%m%d")
-    existing_channels = [ch for ch in guild.channels if ch.name.startswith(f"trade-{today_str}")]
-    if not existing_channels:
-        count = 1
-    else:
-        nums = []
-        for ch in existing_channels:
-            suffix = ch.name.replace(f"trade-{today_str}", "")
-            if suffix.isdigit():
-                nums.append(int(suffix))
-        count = max(nums) + 1 if nums else 1
-    return f"{today_str}{count:03d}"
 
 # ==========================================================
 #                       🔥 /買賣交易
@@ -282,99 +263,37 @@ async def query_trade(interaction: discord.Interaction, trade_id: str):
         COMMAND_STATUS["查詢交易"] = False
 
 # ==========================================================
-#                   🔥 自動公告背景任務（每 30 秒檢查）
+#                       🔥 自動公告排程系統（直接在程式裡）
+# ==========================================================
+# 臨時公告排程（YYYY-MM-DD HH:MM）
+TEMP_ANNOUNCEMENTS = []
+# 每週固定公告排程（weekday: 0-6, hour: int, minute: int）
+WEEKLY_ANNOUNCEMENTS = []
+
+# ==========================================================
+#               🔥 自動公告背景任務
 # ==========================================================
 @tasks.loop(seconds=30)
 async def auto_announce_task():
     now = datetime.datetime.now()
     now_str = now.strftime("%Y-%m-%d %H:%M")
-
-    # 臨時排程
     to_remove = []
-    for task in temp_schedules:
-        if task["time"] == now_str:
-            channel = bot.get_channel(task["channel_id"])
+
+    # 臨時公告
+    for ann in TEMP_ANNOUNCEMENTS:
+        if ann["time"] == now_str:
+            channel = bot.get_channel(ann["channel_id"])
             if channel:
-                mention = f"<@&{VERIFIED_ROLE_ID}>" if task["mention_verified"] else ""
-                await channel.send(f"{mention}\n📢 **自動公告：**\n{task['content']}")
-            to_remove.append(task)
-    for task in to_remove:
-        temp_schedules.remove(task)
+                mention = f"<@&{VERIFIED_ROLE_ID}>" if ann["mention_verified"] else ""
+                await channel.send(f"{mention}\n📢 **自動公告：**\n{ann['content']}")
+            to_remove.append(ann)
+    for r in to_remove:
+        TEMP_ANNOUNCEMENTS.remove(r)
 
-    # 每週排程
-    for task in weekly_schedules:
-        if now.weekday() == task["weekday"] and now.hour == task["hour"] and now.minute == task["minute"]:
-            channel = bot.get_channel(task["channel_id"])
+    # 每週固定公告
+    for ann in WEEKLY_ANNOUNCEMENTS:
+        if ann["weekday"] == now.weekday() and ann["hour"] == now.hour and ann["minute"] == now.minute:
+            channel = bot.get_channel(ann["channel_id"])
             if channel:
-                mention = f"<@&{VERIFIED_ROLE_ID}>" if task["mention_verified"] else ""
-                await channel.send(f"{mention}\n📢 **每週公告：**\n{task['content']}")
-
-# ==========================================================
-#                   🔥 /查看排程
-# ==========================================================
-@bot.tree.command(name="查看排程", description="查看所有排程公告")
-async def view_schedule(interaction: discord.Interaction):
-    msg = "**📋 臨時排程公告**\n"
-    if temp_schedules:
-        for idx, t in enumerate(temp_schedules, start=1):
-            msg += f"{idx}. {t['time']} — {t['content']} (@已驗證: {'是' if t['mention_verified'] else '否'})\n"
-    else:
-        msg += "無\n"
-
-    msg += "\n**📋 每週排程公告**\n"
-    if weekly_schedules:
-        for idx, t in enumerate(weekly_schedules, start=1):
-            msg += f"{idx}. 星期{t['weekday']} {t['hour']:02d}:{t['minute']:02d} — {t['content']} (@已驗證: {'是' if t['mention_verified'] else '否'})\n"
-    else:
-        msg += "無\n"
-
-    await interaction.response.send_message(msg, ephemeral=True)
-
-# ==========================================================
-#                   🔥 /新增每週公告
-# ==========================================================
-@bot.tree.command(name="新增每週公告", description="設定每週固定星期幾公告")
-@app_commands.describe(
-    weekday="星期幾（0=週一, 6=週日）",
-    hour="小時 0~23",
-    minute="分鐘 0~59",
-    content="公告內容",
-    mention_verified="是否 @已驗證身分組 (是/否)"
-)
-async def add_weekly_announce(interaction: discord.Interaction, weekday: int, hour: int, minute: int, content: str, mention_verified: str):
-    weekly_schedules.append({
-        "weekday": weekday,
-        "hour": hour,
-        "minute": minute,
-        "content": content,
-        "mention_verified": mention_verified == "是",
-        "channel_id": interaction.channel_id
-    })
-    await interaction.response.send_message(f"✅ 已新增每週排程公告：星期{weekday} {hour:02d}:{minute:02d} — {content}", ephemeral=True)
-
-# ==========================================================
-#                       🔥 /查詢所有指令狀態
-# ==========================================================
-@bot.tree.command(name="查詢所有指令狀態", description="查看所有指令目前狀態")
-async def query_all_commands(interaction: discord.Interaction):
-    msg = "📋 **所有指令狀態一覽**\n\n"
-    for cmd, status in COMMAND_STATUS.items():
-        if status == False:
-            emoji = "🟢 正常"
-        elif status == True:
-            emoji = "🟡 使用中"
-        elif status == "維修":
-            emoji = "🔧 維修中"
-        else:
-            emoji = "⚪ 未知"
-        msg += f"• **/{cmd}** → {emoji}\n"
-    await interaction.response.send_message(msg, ephemeral=True)
-
-# ==========================================================
-#                       🔥 啟動 BOT
-# ==========================================================
-TOKEN = os.environ.get("DISCORD_TOKEN")
-if not TOKEN:
-    print("❌ DISCORD_TOKEN 未設定")
-else:
-    bot.run(TOKEN)
+                mention = f"<@&{VERIFIED_ROLE_ID}>" if ann["mention_verified"] else ""
+                await channel.send(f"{mention}\n📢 **每週自動公告：**\n{ann['content']}")
