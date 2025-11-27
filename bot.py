@@ -340,6 +340,33 @@ async def query_all_commands(interaction: discord.Interaction):
     await interaction.response.send_message(msg, ephemeral=True)
 
 # ==========================================================
+# 🔥 星際操作手冊 Embed 指令
+# ==========================================================
+@bot.tree.command(name="星際手冊", description="顯示星際指令總覽")
+async def star_manual(interaction: discord.Interaction):
+    embed = discord.Embed(
+        title="🚀 星際指令總覽",
+        description="歡迎進入 **星際操作手冊**，指揮官，以下為核心指令指南，助你掌控艦隊運作。",
+        color=0x1E90FF  # 冷色系藍
+    )
+
+    # 指令列表
+    embed.add_field(name="🛸 /公告", value="發布重要公告，確保全員即時接收最新訊息。", inline=False)
+    embed.add_field(name="🛰 /新增自動公告", value="設定自動公告排程\n• 固定排程: `/新增自動公告` → 選填 `weekday`、`hour`、`minute`\n• 臨時排程: `/新增自動公告` → 選填 `time`", inline=False)
+    embed.add_field(name="🗑 /刪除排程", value="移除指定自動公告排程，維持訊息整潔有序。", inline=False)
+    embed.add_field(name="📡 /查看排程", value="查詢所有已設定的自動公告排程，一目了然。", inline=False)
+    embed.add_field(name="💱 /我要交易", value="輸入交易編號，進入私密交易頻道，開始安全交易。", inline=False)
+    embed.add_field(name="✅ /完成交易", value="完成交易並自動存檔，方便日後紀錄管理。", inline=False)
+    embed.add_field(name="📜 /查詢交易", value="輸入交易編號查詢歷史交易紀錄，掌握所有動態。", inline=False)
+    embed.add_field(name="🔍 /查詢所有指令狀態", value="查看所有指令的運行狀態與管理資訊，確保系統穩定。", inline=False)
+    embed.add_field(name="💹 /買賣交易", value="發布買賣交易訊息並生成交易編號，讓交易流程更有序、可追蹤。", inline=False)
+
+    embed.set_footer(text="指揮官提示：所有指令均可在此艦橋操作，掌控資訊與交易流程。")
+
+    await interaction.response.send_message(embed=embed, ephemeral=False)
+
+
+# ==========================================================
 # 🔥 啟動 BOT
 # ==========================================================
 @bot.event
