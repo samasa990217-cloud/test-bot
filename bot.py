@@ -388,32 +388,30 @@ async def star_manual_pages_close(interaction: discord.Interaction):
     # 🔥 翻頁與關閉按鈕
     # ==========================================================
     class ManualView(View):
-        def __init__(self, embeds):
-            super().__init__(timeout=None)
-            self.embeds = embeds
-            self.index = 0
+    def __init__(self, embeds):
+        super().__init__(timeout=None)
+        self.embeds = embeds
+        self.index = 0
 
-        async def update_message(self, interaction):
-            await interaction.response.edit_message(embed=self.embeds[self.index], view=self)
+    async def update_message(self, interaction):
+        await interaction.response.edit_message(embed=self.embeds[self.index], view=self)
 
-        @discord.ui.button(label="⬅️ 上一頁", style=discord.ButtonStyle.primary)
-        async def previous(self, button: Button, interaction: discord.Interaction):
-            self.index = (self.index - 1) % len(self.embeds)
-            await self.update_message(interaction)
+    @discord.ui.button(label="⬅️ 上一頁", style=discord.ButtonStyle.primary)
+    async def previous(self, button: Button, interaction: discord.Interaction):
+        self.index = (self.index - 1) % len(self.embeds)
+        await self.update_message(interaction)
 
-        @discord.ui.button(label="➡️ 下一頁", style=discord.ButtonStyle.primary)
-        async def next(self, button: Button, interaction: discord.Interaction):
-            self.index = (self.index + 1) % len(self.embeds)
-            await self.update_message(interaction)
+    @discord.ui.button(label="➡️ 下一頁", style=discord.ButtonStyle.primary)
+    async def next(self, button: Button, interaction: discord.Interaction):
+        self.index = (self.index + 1) % len(self.embeds)
+        await self.update_message(interaction)
 
-        @discord.ui.button(label="❌ 關閉手冊", style=discord.ButtonStyle.danger)
-        async def close(self, button: Button, interaction: discord.Interaction):
-            await interaction.message.delete()
-            self.stop()  # 停止 View，按鈕無法再使用
-
-    view = ManualView(embeds)
-    await interaction.response.send_message(embed=embeds[0], view=view, ephemeral=False)
-
+    @discord.ui.button(label="❌ 關閉手冊", style=discord.ButtonStyle.danger)
+    async def close(self, button: Button, interaction: discord.Interaction):
+        # 先回覆 interaction，避免 Interaction failed
+        await interaction.response.send_message("❌ 手冊已關閉", ephemeral=True)
+        await interaction.message.delete()
+        self.stop()
 
 # ==========================================================
 # 🔥 啟動 BOT
