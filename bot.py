@@ -7,6 +7,7 @@ import asyncio
 from flask import Flask
 import threading
 
+
 # ==========================================================
 # 🔥 Render KeepAlive
 # ==========================================================
@@ -17,7 +18,8 @@ def home():
     return "Bot Running OK"
 
 def run_flask():
-    port = int(os.environ.get("PORT", 10000))
+    # ★ 正確：監聽 Render 指定的 PORT
+    port = int(os.environ["PORT"])
     app.run(host="0.0.0.0", port=port)
 
 threading.Thread(target=run_flask).start()
