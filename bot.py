@@ -5,6 +5,7 @@ import os
 import datetime
 import asyncio
 from flask import Flask
+from waitress import serve
 import threading
 
 
@@ -17,12 +18,17 @@ app = Flask("")
 def home():
     return "Bot Running OK"
 
-def run_flask():
-    # ★ 正確：監聽 Render 指定的 PORT
-    port = int(os.environ["PORT"])
-    app.run(host="0.0.0.0", port=port)
+# ★ 專用健康檢查 endpoint
+@app.route("/healthz")
+def health_check():
+    return "OK", 200
 
-threading.Thread(target=run_flask).start()
+def run_flask():
+    port = int(os.environ["PORT"])  # Render 指定的 PORT
+    serve(app, host="0.0.0.0", port=port)  # 用 waitress 取代 app.run()
+
+# 啟動 Flask server 的 thread
+threading.Thread(target=run_flask, daemon=True).start()
 
 # ==========================================================
 # 🔥 Discord Bot 設定
