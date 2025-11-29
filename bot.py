@@ -418,17 +418,20 @@ async def star_manual_advanced(interaction: discord.Interaction):
     await interaction.response.send_message(embed=embed, ephemeral=False)
 
 # ==========================================================
-# 🔥 自我 ping 防止閒置
+# 🔥 自我 ping 防止閒置（中文健康檢查）
 # ==========================================================
 import requests
 
 async def self_ping():
     await bot.wait_until_ready()
-    url = "https://test-bot-iu8p.onrender.com"  # 改成你實際 Render 網址
+    url = "https://你的bot域名/健康檢查"  # 改成你的 Render 實際網址
     while not bot.is_closed():
         try:
-            requests.get(url)
-            print("✅ 自我 ping 成功")
+            response = requests.get(url)
+            if response.status_code == 200:
+                print("✅ 自我 ping 成功")
+            else:
+                print(f"⚠️ 自我 ping 回傳非 200: {response.status_code}")
         except Exception as e:
             print(f"❌ 自我 ping 失敗: {e}")
         await asyncio.sleep(5*60)  # 每 5 分鐘 ping 一次
