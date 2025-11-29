@@ -16,16 +16,15 @@ app = Flask("")
 
 @app.route("/")
 def home():
-    return "Bot Running OK"
+    return "Bot 運行中", 200  # 一般首頁也回 200
 
-# ★ 專用健康檢查 endpoint
-@app.route("/healthz")
+@app.route("/健康檢查")
 def health_check():
-    return "OK", 200
+    return "服務正常 ✅", 200  # 專用健康檢查 endpoint
 
 def run_flask():
-    port = int(os.environ["PORT"])  # Render 指定的 PORT
-    serve(app, host="0.0.0.0", port=port)  # 用 waitress 取代 app.run()
+    port = int(os.environ.get("PORT", 10000))  # Render 會提供 PORT
+    serve(app, host="0.0.0.0", port=port)
 
 # 啟動 Flask server 的 thread
 threading.Thread(target=run_flask, daemon=True).start()
