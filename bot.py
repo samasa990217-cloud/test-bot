@@ -434,7 +434,10 @@ async def self_ping():
                 print(f"❌ 自我 ping 失敗: {e}")
             await asyncio.sleep(5*60)  # 每 5 分鐘 ping 一次
 
-bot.loop.create_task(self_ping())
+async def setup_hook():
+    bot.loop.create_task(self_ping())  # 安全建立自我 ping 背景任務
+
+bot.setup_hook = setup_hook
 # ==========================================================
 # 🔥 啟動 BOT
 # ==========================================================
