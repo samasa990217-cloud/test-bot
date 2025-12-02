@@ -7,7 +7,8 @@ import asyncio
 from flask import Flask
 from waitress import serve
 import threading
-
+import aiohttp
+from discord.ui import View, Button
 
 # ==========================================================
 # 🔥 Render KeepAlive
@@ -16,17 +17,16 @@ app = Flask("")
 
 @app.route("/")
 def home():
-    return "Bot 運行中", 200  # 一般首頁也回 200
+    return "Bot 運行中", 200
 
 @app.route("/健康檢查")
 def health_check():
-    return "服務正常 ✅", 200  # 專用健康檢查 endpoint
+    return "服務正常 ✅", 200
 
 def run_flask():
-    port = int(os.environ.get("PORT", 10000))  # Render 會提供 PORT
+    port = int(os.environ.get("PORT", 10000))
     serve(app, host="0.0.0.0", port=port)
 
-# 啟動 Flask server 的 thread
 threading.Thread(target=run_flask, daemon=True).start()
 
 # ==========================================================
@@ -46,11 +46,14 @@ VERIFIED_ROLE_ID = 1442916731927396403
 BUYERS_ROLE_ID = 1442915193704157235
 TRADE_CATEGORY_ID = 123456789012345678
 LOG_FOLDER = "trade_logs"
-
-# 指令限制頻道
 ANNOUNCE_CHANNEL_ID = 1443115994431094784
 TRADE_CHANNEL_ID = 1443118740802637905
 QUERY_CHANNEL_ID = 1443118774818439290
+
+# 建築師系統
+ARCHITECT_CATEGORY_ID = 1445455877283905621
+ARCHITECT_ROLE_ID = 1445455534076592429
+ARCHITECT_REVIEW_CHANNEL_ID = 1445457655555424347
 
 # 指令狀態
 COMMAND_STATUS = {
@@ -62,7 +65,8 @@ COMMAND_STATUS = {
     "新增自動公告": False,
     "查看排程": False,
     "刪除排程": False,
-    "查詢所有指令狀態": False
+    "查詢所有指令狀態": False,
+    "申請建築師": False
 }
 
 if not os.path.exists(LOG_FOLDER):
@@ -71,11 +75,11 @@ if not os.path.exists(LOG_FOLDER):
 # ==========================================================
 # 🔥 排程清單
 # ==========================================================
-TEMP_ANNOUNCEMENTS = []   # 臨時公告 YYYY-MM-DD HH:MM
-WEEKLY_ANNOUNCEMENTS = [] # 固定每週公告 星期幾 + HH:MM
+TEMP_ANNOUNCEMENTS = []
+WEEKLY_ANNOUNCEMENTS = []
 
 # ==========================================================
-# 🔥 交易系統
+# 🔥 交易系統 (保留原有系統)
 # ==========================================================
 def generate_trade_id(guild):
     today_str = datetime.datetime.now().strftime("%Y%m%d")
@@ -439,6 +443,138 @@ async def setup_hook():
 
 bot.setup_hook = setup_hook
 # ==========================================================
+# 🔥 建築師申請系統
+# ==========================================================
+class ArchitectApplyView(View):
+    def __init__(self, applicant_id, data):
+        super().__init__(timeout=None)
+        self.applicant_id = applicant_id
+        self.data = data  # 存放姓名、服務地區、風格、價格、作品集連結等
+
+        # 按鈕
+        self.add_item(Button(label="通過", style=discord.ButtonStyle.success, custom_id="architect_approve"))
+        self.add_item(Button(label="拒絕", style=discord.ButtonStyle.danger, custom_id="architect_reject"))
+
+    @discord.ui.button(label="通過", style=discord.ButtonStyle.success, custom_id="architect_approve")
+    async def approve(self, interaction: discord.Interaction, button: Button):
+        guild = interaction.guild
+        member = guild.get_member(self.applicant_id)
+        if not member:
+            await interaction.response.send_message("❌ 申請者不在伺服器中。", ephemeral=True)
+            return
+
+        # 加建築師身分組
+        role = guild.get_role(ARCHITECT_ROLE_ID)
+        if role:
+            await member.add_roles(role)
+
+        # 創建永久頻道
+        overwrites = {
+            guild.default_role: discord.PermissionOverwrite(read_messages=False),
+            member: discord.PermissionOverwrite(read_messages=True, send_messages=True),
+        }
+        category = guild.get_channel(ARCHITECT_CATEGORY_ID)
+        channel_name = f"建築師-{member.display_name}"
+        existing_channel = discord.utils.get(guild.channels, name=channel_name)
+        if existing_channel:
+            await interaction.response.send_message("⚠️ 頻道已存在。", ephemeral=True)
+            return
+        channel = await guild.create_text_channel(
+            name=channel_name,
+            overwrites=overwrites,
+            category=category,
+            topic=f"{member.display_name} 的建築師頻道"
+        )
+
+        # 發卡片
+        embed = discord.Embed(
+            title=f"🏗 {member.display_name} 的建築師資訊",
+            description="這是玩家申請的建築師卡片",
+            color=0x00FFAA
+        )
+        for k, v in self.data.items():
+            embed.add_field(name=k, value=v, inline=False)
+        # 按鈕：聘請 / 離開
+        channel_view = View(timeout=None)
+        channel_view.add_item(Button(label="聘請", style=discord.ButtonStyle.primary, custom_id=f"hired_{member.id}"))
+        channel_view.add_item(Button(label="離開", style=discord.ButtonStyle.secondary, custom_id=f"leave_{member.id}"))
+        await channel.send(embed=embed, view=channel_view)
+
+        await interaction.response.send_message(f"✅ 已通過 {member.display_name} 的申請，永久頻道已建立。", ephemeral=True)
+        await interaction.message.delete()
+
+    @discord.ui.button(label="拒絕", style=discord.ButtonStyle.danger, custom_id="architect_reject")
+    async def reject(self, interaction: discord.Interaction, button: Button):
+        member = interaction.guild.get_member(self.applicant_id)
+        if member:
+            await member.send("❌ 您的建築師申請未通過。")
+        await interaction.response.send_message(f"❌ 已拒絕 {member.display_name if member else '申請者'} 的申請。", ephemeral=True)
+        await interaction.message.delete()
+
+# ==========================================================
+# 🔥 /申請建築師 指令
+# ==========================================================
+@bot.tree.command(name="申請建築師", description="申請成為建築師")
+async def apply_architect(interaction: discord.Interaction):
+    if COMMAND_STATUS["申請建築師"] in [True, "維修"]:
+        return await interaction.response.send_message("🟡 指令忙碌或維修中", ephemeral=True)
+    COMMAND_STATUS["申請建築師"] = True
+    try:
+        await interaction.response.send_message("請依序輸入下列資訊（在聊天中回覆）：\n1️⃣ 您的姓名\n2️⃣ 服務地區（遊戲內位置）\n3️⃣ 擅長風格\n4️⃣ 價格範圍\n5️⃣ 作品集連結或示意圖片 URL", ephemeral=True)
+
+        def check(m): return m.author == interaction.user and m.channel == interaction.channel
+
+        answers = {}
+        questions = ["您的姓名", "服務地區", "擅長風格", "價格範圍", "作品集連結或示意圖片 URL"]
+        for q in questions:
+            msg = await bot.wait_for("message", check=check, timeout=120)
+            answers[q] = msg.content
+            await msg.delete()
+
+        # 送到審核頻道
+        review_channel = bot.get_channel(ARCHITECT_REVIEW_CHANNEL_ID)
+        if not review_channel:
+            return await interaction.followup.send("❌ 審核頻道不存在", ephemeral=True)
+        view = ArchitectApplyView(interaction.user.id, answers)
+        embed = discord.Embed(
+            title="🏗 新建築師申請",
+            description=f"玩家 {interaction.user.mention} 申請成為建築師，請管理員審核。",
+            color=0xFFA500
+        )
+        for k, v in answers.items():
+            embed.add_field(name=k, value=v, inline=False)
+        await review_channel.send(embed=embed, view=view)
+
+        await interaction.followup.send("✅ 申請已送出，等待管理員審核。", ephemeral=True)
+    except asyncio.TimeoutError:
+        await interaction.followup.send("❌ 申請超時，請重新操作。", ephemeral=True)
+    finally:
+        COMMAND_STATUS["申請建築師"] = False
+
+# ==========================================================
+# 🔥 自我 ping
+# ==========================================================
+async def self_ping():
+    await bot.wait_until_ready()
+    url = "https://test-bot-iu8p.onrender.com/健康檢查"
+    async with aiohttp.ClientSession() as session:
+        while not bot.is_closed():
+            try:
+                async with session.get(url) as resp:
+                    if resp.status == 200:
+                        print("✅ 自我 ping 成功")
+                    else:
+                        print(f"⚠️ 自我 ping 回傳 {resp.status}")
+            except Exception as e:
+                print(f"❌ 自我 ping 失敗: {e}")
+            await asyncio.sleep(5*60)
+
+async def setup_hook():
+    bot.loop.create_task(self_ping())
+
+bot.setup_hook = setup_hook
+
+# ==========================================================
 # 🔥 啟動 BOT
 # ==========================================================
 @bot.event
@@ -449,9 +585,6 @@ async def on_ready():
         print("Slash commands synced.")
     except Exception as e:
         print(e)
-    if not auto_announce_task.is_running():
-        auto_announce_task.start()
-        print("Auto announcement task started.")
 
 TOKEN = os.environ.get("DISCORD_TOKEN")
 if not TOKEN:
