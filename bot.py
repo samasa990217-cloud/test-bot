@@ -91,7 +91,7 @@ async def self_ping():
             await asyncio.sleep(5*60)  # 每 5 分鐘 ping 一次
 
 # ==========================================================
-# 🔥 Cog 載入
+# 🔥 Cog 載入（建築師系統）
 # ==========================================================
 async def load_cogs():
     try:
@@ -100,6 +100,15 @@ async def load_cogs():
         print("✅ Architect cogs 已載入")
     except Exception as e:
         print(f"❌ 載入 Architect cogs 失敗: {e}")
+
+# ==========================================================
+# 🔥 安全初始化 (唯一 setup_hook)
+# ==========================================================
+async def setup_hook():
+    bot.loop.create_task(self_ping())  # 背景 ping
+    await load_cogs()                  # 載入 Architect Cogs
+
+bot.setup_hook = setup_hook
 
 # ==========================================================
 # 🔥 安全初始化
@@ -475,16 +484,6 @@ async def self_ping():
             except Exception as e:
                 print(f"❌ 自我 ping 失敗: {e}")
             await asyncio.sleep(5*60)  # 每 5 分鐘 ping 一次
-
-# ==========================================================
-# 🔥 安全初始化
-# ==========================================================
-async def setup_hook():
-    bot.loop.create_task(self_ping())      # 背景 ping
-    await load_cogs()                      # 載入 Architect Cogs
-
-bot.setup_hook = setup_hook
-
 
 # ==========================================================
 # 🔥 Bot 啟動
