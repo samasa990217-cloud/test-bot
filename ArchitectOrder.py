@@ -6,7 +6,9 @@ from discord.ui import View, Button
 ARCHITECT_CATEGORY_ID = 1445455877283905621
 ARCHITECT_ROLE_ID = 1445455534076592429
 
+# ------------------------------
 # 專屬頻道按鈕
+# ------------------------------
 class ArchitectOrderView(View):
     def __init__(self, client_member, architect_member):
         super().__init__(timeout=None)
@@ -16,9 +18,7 @@ class ArchitectOrderView(View):
     @discord.ui.button(label="結束委託", style=discord.ButtonStyle.danger)
     async def end_order(self, interaction: discord.Interaction, button: Button):
         await interaction.channel.set_permissions(self.client_member, read_messages=False, send_messages=False)
-        await interaction.response.send_message(
-            f"✅ 已結束 {self.client_member.display_name} 的委託，不再顯示此頻道。", ephemeral=True
-        )
+        await interaction.response.send_message(f"✅ 已結束 {self.client_member.display_name} 的委託，對他不再顯示此頻道。", ephemeral=True)
 
     @discord.ui.button(label="離開頻道", style=discord.ButtonStyle.secondary)
     async def leave_order(self, interaction: discord.Interaction, button: Button):
@@ -26,7 +26,9 @@ class ArchitectOrderView(View):
         await interaction.response.send_message("✅ 您已離開此頻道，不再顯示。", ephemeral=True)
 
 
-# 瀏覽建築師 + 聘請
+# ------------------------------
+# 查看建築師列表 + 聘請
+# ------------------------------
 class ArchitectBrowseView(View):
     def __init__(self, user, architects, architect_data, index=0):
         super().__init__(timeout=None)
@@ -47,9 +49,8 @@ class ArchitectBrowseView(View):
             description="建築師資訊卡片",
             color=0x00FFAA
         )
-        if data:
-            for k, v in data.items():
-                embed.add_field(name=k, value=v, inline=False)
+        for k, v in data.items():
+            embed.add_field(name=k, value=v, inline=False)
         embed.add_field(name="固定頻道", value=channel.mention if channel else "未建立", inline=False)
 
         await interaction.message.edit(embed=embed, view=self)
@@ -75,16 +76,16 @@ class ArchitectBrowseView(View):
         if not channel:
             await interaction.response.send_message("❌ 該建築師的頻道不存在。", ephemeral=True)
             return
-
         await channel.set_permissions(interaction.user, read_messages=True, send_messages=True)
         await channel.set_permissions(arch, read_messages=True, send_messages=True)
         view = ArchitectOrderView(interaction.user, arch)
         await channel.send(f"👷 {interaction.user.mention} 已加入 {arch.mention} 的建築師頻道", view=view)
-        await interaction.response.send_message(
-            f"✅ 已加入 {arch.display_name} 的建築師頻道：{channel.mention}", ephemeral=True
-        )
+        await interaction.response.send_message(f"✅ 已加入 {arch.display_name} 的建築師頻道：{channel.mention}", ephemeral=True)
 
 
+# ------------------------------
+# Cog + Slash 指令
+# ------------------------------
 class ArchitectOrder(commands.Cog):
     def __init__(self, bot):
         self.bot = bot
@@ -110,6 +111,19 @@ class ArchitectOrder(commands.Cog):
         channel_name = f"建築師-{arch.display_name}"
         channel = discord.utils.get(guild.channels, name=channel_name)
         embed = discord.Embed(
+            title=f"🏗 {arch.display_name}",
+            description="建築師資訊卡片",
+            color=0x00FFAA
+        )
+        for k, v in data.items():
+            embed.add_field(name=k, value=v, inline=False)
+        embed.add_field(name="固定頻道", value=channel.mention if channel else "未建立", inline=False)
+
+        await interaction.response.send_message(embed=embed, view=view, ephemeral=False)
+
+
+async def setup(bot):
+    await bot.add_cog(ArchitectOrder(bot))        embed = discord.Embed(
             title=f"🏗 {arch.display_name}",
             description="建築師資訊卡片",
             color=0x00FFAA
@@ -165,4 +179,5 @@ async def setup(bot):
 # ------------------------------
 async def setup(bot: commands.Bot):
     await bot.add_cog(ArchitectOrder(bot))
+
 
