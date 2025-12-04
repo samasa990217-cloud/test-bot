@@ -95,8 +95,8 @@ async def self_ping():
 # ==========================================================
 async def load_cogs():
     try:
-        await bot.load_extension("cogs.ArchitectApply")
-        await bot.load_extension("cogs.ArchitectOrder")
+        await bot.load_extension("ArchitectApply")
+        await bot.load_extension("ArchitectOrder")
         print("✅ Architect cogs 已載入")
     except Exception as e:
         print(f"❌ 載入 Architect cogs 失敗: {e}")
