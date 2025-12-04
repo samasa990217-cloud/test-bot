@@ -8,30 +8,32 @@ ARCHITECT_CATEGORY_ID = 1445455877283905621
 ARCHITECT_ROLE_ID = 1445455534076592429
 ARCHITECT_REVIEW_CHANNEL_ID = 1445457655555424347
 
-# 允許操作按鈕的管理員 ID
+# 只有這兩個管理員能操作按鈕
 ALLOWED_ADMIN_IDS = [1442915362600648714, 1442996893901918291]
 
-class ArchitectApplyView(View):
-    def __init__(self, applicant_id, data):
-        super().__init__(timeout=None)
+# ------------------------------
+# 按鈕類別
+# ------------------------------
+class ApproveButton(Button):
+    def __init__(self, applicant_id):
+        super().__init__(label="通過", style=discord.ButtonStyle.success)
         self.applicant_id = applicant_id
-        self.data = data
 
-    @discord.ui.button(label="通過", style=discord.ButtonStyle.success)
-    async def approve(self, interaction: discord.Interaction, button: Button):
+    async def callback(self, interaction: discord.Interaction):
         if interaction.user.id not in ALLOWED_ADMIN_IDS:
             await interaction.response.send_message("❌ 你沒有權限操作這個按鈕。", ephemeral=True)
             return
-        
+
         guild = interaction.guild
         member = guild.get_member(self.applicant_id)
         if not member:
             await interaction.response.send_message("❌ 申請者不在伺服器中。", ephemeral=True)
             return
-        # 加建築師身分組
+
         role = guild.get_role(ARCHITECT_ROLE_ID)
         if role:
             await member.add_roles(role)
+
         # 創建永久頻道
         overwrites = {
             guild.default_role: discord.PermissionOverwrite(read_messages=False),
@@ -49,30 +51,54 @@ class ArchitectApplyView(View):
             category=category,
             topic=f"{member.display_name} 的建築師頻道"
         )
+
         # 發卡片
         embed = discord.Embed(
             title=f"🏗 {member.display_name} 的建築師資訊",
             description="這是玩家申請的建築師卡片",
             color=0x00FFAA
         )
-        for k, v in self.data.items():
-            embed.add_field(name=k, value=v, inline=False)
+        # 如果有 data 可以放上去
+        if hasattr(self.view, "data"):
+            for k, v in self.view.data.items():
+                embed.add_field(name=k, value=v, inline=False)
+
         await channel.send(embed=embed)
         await interaction.response.send_message(f"✅ 已通過 {member.display_name} 的申請，永久頻道已建立。", ephemeral=True)
         await interaction.message.delete()
 
-    @discord.ui.button(label="拒絕", style=discord.ButtonStyle.danger)
-    async def reject(self, interaction: discord.Interaction, button: Button):
+class RejectButton(Button):
+    def __init__(self, applicant_id):
+        super().__init__(label="拒絕", style=discord.ButtonStyle.danger)
+        self.applicant_id = applicant_id
+
+    async def callback(self, interaction: discord.Interaction):
         if interaction.user.id not in ALLOWED_ADMIN_IDS:
             await interaction.response.send_message("❌ 你沒有權限操作這個按鈕。", ephemeral=True)
             return
-        
+
         member = interaction.guild.get_member(self.applicant_id)
         if member:
             await member.send("❌ 您的建築師申請未通過。")
         await interaction.response.send_message(f"❌ 已拒絕 {member.display_name if member else '申請者'} 的申請。", ephemeral=True)
         await interaction.message.delete()
 
+# ------------------------------
+# View
+# ------------------------------
+class ArchitectApplyView(View):
+    def __init__(self, applicant_id, data):
+        super().__init__(timeout=None)
+        self.applicant_id = applicant_id
+        self.data = data
+
+        # 只生成給管理員的按鈕
+        self.add_item(ApproveButton(applicant_id))
+        self.add_item(RejectButton(applicant_id))
+
+# ------------------------------
+# Cog
+# ------------------------------
 class ArchitectApply(commands.Cog):
     def __init__(self, bot):
         self.bot = bot
@@ -103,6 +129,7 @@ class ArchitectApply(commands.Cog):
             review_channel = self.bot.get_channel(ARCHITECT_REVIEW_CHANNEL_ID)
             if not review_channel:
                 return await interaction.followup.send("❌ 審核頻道不存在", ephemeral=True)
+
             view = ArchitectApplyView(interaction.user.id, answers)
             embed = discord.Embed(
                 title="🏗 新建築師申請",
@@ -111,12 +138,17 @@ class ArchitectApply(commands.Cog):
             )
             for k, v in answers.items():
                 embed.add_field(name=k, value=v, inline=False)
+
             await review_channel.send(embed=embed, view=view)
             await interaction.followup.send("✅ 申請已送出，等待管理員審核。", ephemeral=True)
+
         except asyncio.TimeoutError:
             await interaction.followup.send("❌ 申請超時，請重新操作。", ephemeral=True)
         finally:
             self.command_status["申請建築師"] = False
 
+# ------------------------------
+# setup
+# ------------------------------
 async def setup(bot):
     await bot.add_cog(ArchitectApply(bot))
