@@ -3,22 +3,21 @@ from discord.ext import commands
 from discord.ui import View, Button
 
 ARCHITECT_CATEGORY_ID = 1445455877283905621
+ARCHITECT_ROLE_ID = 1445455534076592429
 
 class ArchitectOrderView(View):
     def __init__(self, client_member, architect_member):
         super().__init__(timeout=None)
         self.client_member = client_member
         self.architect_member = architect_member
-        self.add_item(Button(label="結束委託", style=discord.ButtonStyle.danger, custom_id="end_order"))
-        self.add_item(Button(label="離開頻道", style=discord.ButtonStyle.secondary, custom_id="leave_order"))
 
-    @discord.ui.button(label="結束委託", style=discord.ButtonStyle.danger, custom_id="end_order")
+    @discord.ui.button(label="結束委託", style=discord.ButtonStyle.danger)
     async def end_order(self, interaction: discord.Interaction, button: Button):
         channel = interaction.channel
         await channel.set_permissions(self.client_member, read_messages=False, send_messages=False)
         await interaction.response.send_message(f"✅ 已結束 {self.client_member.display_name} 的委託。", ephemeral=True)
 
-    @discord.ui.button(label="離開頻道", style=discord.ButtonStyle.secondary, custom_id="leave_order")
+    @discord.ui.button(label="離開頻道", style=discord.ButtonStyle.secondary)
     async def leave_order(self, interaction: discord.Interaction, button: Button):
         channel = interaction.channel
         await channel.set_permissions(interaction.user, read_messages=False, send_messages=False)
@@ -31,12 +30,13 @@ class ArchitectOrder(commands.Cog):
     @discord.app_commands.command(name="找建築師", description="顯示建築師卡片並可聘請")
     async def find_architect(self, interaction: discord.Interaction):
         guild = interaction.guild
-        role = guild.get_role(1445455534076592429)
+        role = guild.get_role(ARCHITECT_ROLE_ID)
         if not role:
             return await interaction.response.send_message("❌ 建築師身分組不存在", ephemeral=True)
-        architects = [m for m in role.members if m.bot == False]
+        architects = [m for m in role.members if not m.bot]
         if not architects:
             return await interaction.response.send_message("❌ 目前沒有建築師", ephemeral=True)
+
         # 目前只顯示第一個建築師作為示範
         arch = architects[0]
         embed = discord.Embed(
@@ -44,8 +44,11 @@ class ArchitectOrder(commands.Cog):
             description="建築師資訊卡片",
             color=0x00FFAA
         )
-        view = View(timeout=None)
+
+        # 使用 ArchitectOrderView，按鈕包含聘請功能
+        view = ArchitectOrderView(interaction.user, arch)
         view.add_item(Button(label="聘請", style=discord.ButtonStyle.primary, custom_id=f"hired_{arch.id}"))
+
         await interaction.response.send_message(embed=embed, view=view, ephemeral=False)
 
     @commands.Cog.listener()
