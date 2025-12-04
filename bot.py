@@ -444,6 +444,20 @@ async def setup_hook():
 bot.setup_hook = setup_hook
 
 # ==========================================================
+# 🔥 載入 Cogs（建築師系統）
+# ==========================================================
+async def load_cogs():
+    try:
+        await bot.load_extension("cogs.ArchitectApply")  # 如果 ArchitectApply 有需要
+        await bot.load_extension("cogs.ArchitectOrder")
+        print("✅ Architect cogs 已載入")
+    except Exception as e:
+        print(f"❌ 載入 Architect cogs 失敗: {e}")
+
+bot.loop.create_task(load_cogs())
+
+
+# ==========================================================
 # 🔥 啟動 BOT
 # ==========================================================
 @bot.event
