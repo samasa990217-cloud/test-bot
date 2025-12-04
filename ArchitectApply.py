@@ -65,15 +65,14 @@ async def approve(self, interaction: discord.Interaction, button: Button):
         await interaction.response.send_message(f"✅ 已通過 {member.display_name} 的申請，永久頻道已建立。", ephemeral=True)
         await interaction.message.delete()
 
-class RejectButton(Button):
-    def __init__(self, applicant_id):
-        super().__init__(label="拒絕", style=discord.ButtonStyle.danger)
-        self.applicant_id = applicant_id
+@discord.ui.button(label="拒絕", style=discord.ButtonStyle.danger)
+async def reject(self, interaction: discord.Interaction, button: Button):
 
-    async def callback(self, interaction: discord.Interaction):
-        if interaction.user.id not in ALLOWED_ADMIN_IDS:
-            await interaction.response.send_message("❌ 你沒有權限操作這個按鈕。", ephemeral=True)
-            return
+    # ⛔ 判斷是否有管理員身分組
+    if not any(role.id in ALLOWED_ADMIN_ROLE_IDS for role in interaction.user.roles):
+        await interaction.response.send_message("❌ 你沒有權限操作此按鈕。", ephemeral=True)
+        return
+
 
         member = interaction.guild.get_member(self.applicant_id)
         if member:
@@ -150,5 +149,6 @@ class ArchitectApply(commands.Cog):
 # ------------------------------
 async def setup(bot):
     await bot.add_cog(ArchitectApply(bot))
+
 
 
