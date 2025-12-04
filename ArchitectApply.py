@@ -8,19 +8,13 @@ ARCHITECT_CATEGORY_ID = 1445455877283905621
 ARCHITECT_ROLE_ID = 1445455534076592429
 ARCHITECT_REVIEW_CHANNEL_ID = 1445457655555424347
 
-COMMAND_STATUS = {
-    "申請建築師": False
-}
-
 class ArchitectApplyView(View):
     def __init__(self, applicant_id, data):
         super().__init__(timeout=None)
         self.applicant_id = applicant_id
         self.data = data
-        self.add_item(Button(label="通過", style=discord.ButtonStyle.success, custom_id="architect_approve"))
-        self.add_item(Button(label="拒絕", style=discord.ButtonStyle.danger, custom_id="architect_reject"))
 
-    @discord.ui.button(label="通過", style=discord.ButtonStyle.success, custom_id="architect_approve")
+    @discord.ui.button(label="通過", style=discord.ButtonStyle.success)
     async def approve(self, interaction: discord.Interaction, button: Button):
         guild = interaction.guild
         member = guild.get_member(self.applicant_id)
@@ -60,7 +54,7 @@ class ArchitectApplyView(View):
         await interaction.response.send_message(f"✅ 已通過 {member.display_name} 的申請，永久頻道已建立。", ephemeral=True)
         await interaction.message.delete()
 
-    @discord.ui.button(label="拒絕", style=discord.ButtonStyle.danger, custom_id="architect_reject")
+    @discord.ui.button(label="拒絕", style=discord.ButtonStyle.danger)
     async def reject(self, interaction: discord.Interaction, button: Button):
         member = interaction.guild.get_member(self.applicant_id)
         if member:
@@ -71,12 +65,15 @@ class ArchitectApplyView(View):
 class ArchitectApply(commands.Cog):
     def __init__(self, bot):
         self.bot = bot
+        self.command_status = {
+            "申請建築師": False
+        }
 
     @app_commands.command(name="申請建築師", description="申請成為建築師")
     async def apply_architect(self, interaction: discord.Interaction):
-        if COMMAND_STATUS["申請建築師"] in [True, "維修"]:
+        if self.command_status["申請建築師"] in [True, "維修"]:
             return await interaction.response.send_message("🟡 指令忙碌或維修中", ephemeral=True)
-        COMMAND_STATUS["申請建築師"] = True
+        self.command_status["申請建築師"] = True
         try:
             await interaction.response.send_message(
                 "請依序輸入下列資訊（在聊天中回覆）：\n1️⃣ 您的姓名\n2️⃣ 遊戲住宅位置\n3️⃣ 建築風格\n4️⃣ 價格\n5️⃣ 補充（可選）", ephemeral=True
@@ -108,7 +105,7 @@ class ArchitectApply(commands.Cog):
         except asyncio.TimeoutError:
             await interaction.followup.send("❌ 申請超時，請重新操作。", ephemeral=True)
         finally:
-            COMMAND_STATUS["申請建築師"] = False
+            self.command_status["申請建築師"] = False
 
 async def setup(bot):
     await bot.add_cog(ArchitectApply(bot))
