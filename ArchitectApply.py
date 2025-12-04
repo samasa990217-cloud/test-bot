@@ -9,7 +9,7 @@ ARCHITECT_ROLE_ID = 1445455534076592429
 ARCHITECT_REVIEW_CHANNEL_ID = 1445457655555424347
 
 # 只有這兩個管理員能操作按鈕
-ALLOWED_ADMIN_IDS = [1442915362600648714, 1442996893901918291]
+ALLOWED_ADMIN_IDS = [1442915362600648714,1442996893901918291]
 
 # ------------------------------
 # 按鈕類別
@@ -152,3 +152,4 @@ class ArchitectApply(commands.Cog):
 # ------------------------------
 async def setup(bot):
     await bot.add_cog(ArchitectApply(bot))
+
