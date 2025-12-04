@@ -374,9 +374,9 @@ async def delete_schedule(interaction: discord.Interaction, index: int, type: st
         await interaction.response.send_message("❌ 請指定正確排程類型：臨時 / 每週", ephemeral=True)
 
 # ==========================================================
-# 🔥 查詢指令狀態
+# 🔥 查詢指令狀態 + 建築師系統
 # ==========================================================
-@bot.tree.command(name="查詢所有指令狀態", description="查看所有指令目前狀態")
+@bot.tree.command(name="查詢所有指令狀態", description="查看所有指令目前狀態與建築師資料")
 async def query_all_commands(interaction: discord.Interaction):
     msg = "📋 **所有指令狀態一覽**\n\n"
     for cmd, status in COMMAND_STATUS.items():
@@ -389,9 +389,23 @@ async def query_all_commands(interaction: discord.Interaction):
         else:
             emoji = "⚪ 未知"
         msg += f"• **/{cmd}** → {emoji}\n"
-    await interaction.response.send_message(msg, ephemeral=True)
 
-from discord.ui import View, Button
+    # 加入建築師系統狀態
+    msg += "\n🏗 **建築師系統**\n"
+
+    if hasattr(bot, "_architect_data") and bot._architect_data:
+        for member_id, data in bot._architect_data.items():
+            member = interaction.guild.get_member(member_id)
+            if not member:
+                continue
+            channel_name = f"建築師-{member.display_name}"
+            channel = discord.utils.get(interaction.guild.channels, name=channel_name)
+            channel_mention = channel.mention if channel else "未建立"
+            msg += f"• {member.display_name} → 專屬頻道: {channel_mention}\n"
+    else:
+        msg += "• 目前沒有建築師\n"
+
+    await interaction.response.send_message(msg, ephemeral=True)
 
 # ==========================================================
 # 🔥 升級版星際操作手冊 Embed 指令
