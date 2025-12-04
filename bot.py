@@ -73,6 +73,44 @@ if not os.path.exists(LOG_FOLDER):
     os.makedirs(LOG_FOLDER)
 
 # ==========================================================
+# 🔥 自我 ping 背景任務
+# ==========================================================
+async def self_ping():
+    await bot.wait_until_ready()
+    url = "https://test-bot-iu8p.onrender.com/健康檢查"  # 改成你的 Render 網址
+    async with aiohttp.ClientSession() as session:
+        while not bot.is_closed():
+            try:
+                async with session.get(url) as resp:
+                    if resp.status == 200:
+                        print("✅ 自我 ping 成功")
+                    else:
+                        print(f"⚠️ 自我 ping 回傳 {resp.status}")
+            except Exception as e:
+                print(f"❌ 自我 ping 失敗: {e}")
+            await asyncio.sleep(5*60)  # 每 5 分鐘 ping 一次
+
+# ==========================================================
+# 🔥 Cog 載入
+# ==========================================================
+async def load_cogs():
+    try:
+        await bot.load_extension("cogs.ArchitectApply")
+        await bot.load_extension("cogs.ArchitectOrder")
+        print("✅ Architect cogs 已載入")
+    except Exception as e:
+        print(f"❌ 載入 Architect cogs 失敗: {e}")
+
+# ==========================================================
+# 🔥 安全初始化
+# ==========================================================
+async def setup_hook():
+    bot.loop.create_task(self_ping())
+    await load_cogs()
+
+bot.setup_hook = setup_hook
+
+# ==========================================================
 # 🔥 排程清單
 # ==========================================================
 TEMP_ANNOUNCEMENTS = []
@@ -458,7 +496,7 @@ bot.loop.create_task(load_cogs())
 
 
 # ==========================================================
-# 🔥 啟動 BOT
+# 🔥 Bot 啟動
 # ==========================================================
 @bot.event
 async def on_ready():
