@@ -9,20 +9,18 @@ ARCHITECT_ROLE_ID = 1445455534076592429
 ARCHITECT_REVIEW_CHANNEL_ID = 1445457655555424347
 
 # 只有這兩個管理員能操作按鈕
-ALLOWED_ADMIN_IDS = [1442915362600648714,1442996893901918291]
+ALLOWED_ADMIN_ROLE_IDS = [1442915362600648714, 1442996893901918291]
 
 # ------------------------------
 # 按鈕類別
 # ------------------------------
-class ApproveButton(Button):
-    def __init__(self, applicant_id):
-        super().__init__(label="通過", style=discord.ButtonStyle.success)
-        self.applicant_id = applicant_id
+@discord.ui.button(label="通過", style=discord.ButtonStyle.success)
+async def approve(self, interaction: discord.Interaction, button: Button):
 
-    async def callback(self, interaction: discord.Interaction):
-        if interaction.user.id not in ALLOWED_ADMIN_IDS:
-            await interaction.response.send_message("❌ 你沒有權限操作這個按鈕。", ephemeral=True)
-            return
+    # ⛔ 判斷是否有管理員身分組
+    if not any(role.id in ALLOWED_ADMIN_ROLE_IDS for role in interaction.user.roles):
+        await interaction.response.send_message("❌ 你沒有權限操作此按鈕。", ephemeral=True)
+        return
 
         guild = interaction.guild
         member = guild.get_member(self.applicant_id)
@@ -152,4 +150,5 @@ class ArchitectApply(commands.Cog):
 # ------------------------------
 async def setup(bot):
     await bot.add_cog(ArchitectApply(bot))
+
 
