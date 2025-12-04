@@ -1,13 +1,14 @@
 # ------------------------------
 # ArchitectOrder.py
 # ------------------------------
+
 import discord
 from discord.ext import commands
 from discord import app_commands
 from discord.ui import View, Button
 
-ARCHITECT_CATEGORY_ID = 1445455877283905621
 ARCHITECT_ROLE_ID = 1445455534076592429
+ALLOWED_BROWSE_CHANNEL_ID = 1446170724979965995
 
 # ------------------------------
 # 專屬頻道按鈕
@@ -34,7 +35,6 @@ class ArchitectOrderView(View):
             ephemeral=True
         )
 
-
 # ------------------------------
 # 查看建築師列表 + 聘請
 # ------------------------------
@@ -58,9 +58,8 @@ class ArchitectBrowseView(View):
             description="建築師資訊卡片",
             color=0x00FFAA
         )
-        if data:
-            for k, v in data.items():
-                embed.add_field(name=k, value=v, inline=False)
+        for k, v in data.items():
+            embed.add_field(name=k, value=v, inline=False)
         embed.add_field(name="固定頻道", value=channel.mention if channel else "未建立", inline=False)
 
         await interaction.message.edit(embed=embed, view=self)
@@ -95,9 +94,8 @@ class ArchitectBrowseView(View):
             ephemeral=True
         )
 
-
 # ------------------------------
-# Cog + Slash 指令
+# Slash 指令：找建築師
 # ------------------------------
 class ArchitectOrder(commands.Cog):
     def __init__(self, bot):
@@ -105,6 +103,14 @@ class ArchitectOrder(commands.Cog):
 
     @app_commands.command(name="找建築師", description="顯示建築師卡片並可聘請")
     async def find_architect(self, interaction: discord.Interaction):
+        # 限制頻道
+        if interaction.channel.id != ALLOWED_BROWSE_CHANNEL_ID:
+            await interaction.response.send_message(
+                f"❌ 這個指令只能在 <#{ALLOWED_BROWSE_CHANNEL_ID}> 使用。",
+                ephemeral=True
+            )
+            return
+
         guild = interaction.guild
         role = guild.get_role(ARCHITECT_ROLE_ID)
         if not role:
@@ -116,7 +122,6 @@ class ArchitectOrder(commands.Cog):
             await interaction.response.send_message("❌ 目前沒有建築師", ephemeral=True)
             return
 
-        # 取得申請資料
         architect_data = getattr(self.bot, "_architect_data", {})
 
         view = ArchitectBrowseView(interaction.user, architects, architect_data)
@@ -125,18 +130,17 @@ class ArchitectOrder(commands.Cog):
 
         channel_name = f"建築師-{arch.display_name}"
         channel = discord.utils.get(guild.channels, name=channel_name)
+
         embed = discord.Embed(
             title=f"🏗 {arch.display_name}",
             description="建築師資訊卡片",
             color=0x00FFAA
         )
-        if data:
-            for k, v in data.items():
-                embed.add_field(name=k, value=v, inline=False)
+        for k, v in data.items():
+            embed.add_field(name=k, value=v, inline=False)
         embed.add_field(name="固定頻道", value=channel.mention if channel else "未建立", inline=False)
 
-        await interaction.response.send_message(embed=embed, view=view, ephemeral=False)
-
+        await interaction.response.send_message(embed=embed, view=view)
 
 # ------------------------------
 # Cog setup
