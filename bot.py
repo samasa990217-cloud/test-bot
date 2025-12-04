@@ -476,8 +476,12 @@ async def self_ping():
                 print(f"❌ 自我 ping 失敗: {e}")
             await asyncio.sleep(5*60)  # 每 5 分鐘 ping 一次
 
+# ==========================================================
+# 🔥 安全初始化
+# ==========================================================
 async def setup_hook():
-    bot.loop.create_task(self_ping())  # 安全建立自我 ping 背景任務
+    bot.loop.create_task(self_ping())      # 背景 ping
+    await load_cogs()                      # 載入 Architect Cogs
 
 bot.setup_hook = setup_hook
 
