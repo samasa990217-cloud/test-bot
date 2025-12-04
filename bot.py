@@ -102,22 +102,16 @@ async def load_cogs():
         print(f"❌ 載入 Architect cogs 失敗: {e}")
 
 # ==========================================================
-# 🔥 安全初始化 (唯一 setup_hook)
+# 🔥 正確且唯一的 setup_hook（會同步斜線指令）
 # ==========================================================
 async def setup_hook():
     bot.loop.create_task(self_ping())  # 背景 ping
-    await load_cogs()                  # 載入 Architect Cogs
+    await load_cogs()                  # 載入 Cogs
+    await bot.tree.sync()              # 🔥 最重要：同步所有斜線指令
+    print("✅ Slash 指令同步完成！")
 
 bot.setup_hook = setup_hook
 
-# ==========================================================
-# 🔥 安全初始化
-# ==========================================================
-async def setup_hook():
-    bot.loop.create_task(self_ping())
-    await load_cogs()
-
-bot.setup_hook = setup_hook
 
 # ==========================================================
 # 🔥 排程清單
